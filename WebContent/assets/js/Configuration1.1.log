@@ -1,0 +1,8 @@
+Configuration.js 1.1：2018/01/05
+
+Configuration类用于访问服务器上的xml文件，load(filename)方法加载文件名为filename的XML文件。
+
+getNodeByXPath(xpath)和getNodesByXPath(xpath)方法通过xpath查找并返回已加载文件内的结点或结点组。
+关于xpath路径的格式，参考相应文档。
+
+注意：每个GameObject构造时都需要一个Configuration对象。
