@@ -1,0 +1,28 @@
+GameMap.js 1.2.1：2018/01/16
+
+新增属性view，表示一个游戏视野。另外新增各种移动、滚动视野的函数。
+其中scrollView是滚动视野，viewAt用来追踪一个点（一般是玩家位置）。
+
+====================
+GameMap.js 1.1.1：2018/01/05
+
+注：为避免与系统类Map（字典）命名冲突，游戏地图类类名由Map更改为GameMap，同时更改文件名为GameMap.js。
+
+GameMap管理当前地图上所有游戏物体（GameObject）。
+地图本身也是一个游戏物体，它的绘制函数onRender()除了绘制自身外，还会分层绘制它管理的所有物体。
+
+层的绘制顺序是MAP（自身）、HIDDEN（隐藏层，如出生点，一般不绘制）、GROUND（地面装饰）、
+MIDDLE（中间层，一般是障碍物）、UPPER（上层，包括增益点、恢复点和场景出入口）、FLOWING（动态层，包括玩家、怪物、技能等会移动的物体）。
+
+onLoad(mapID)函数用于从XML配置文件里读取ID为mapID的地图，
+读取完成后，地图的objects物体列表里会生成各种类型的物体，具体物体类和数据在配置文件中定义。可参考文件config.xml。
+
+processObjectHits()函数用于执行当前地图中所有物体的碰撞检测，并逻辑移除消失的物体。建议外部每帧调用一次。
+
+clearDeletedObjects()函数用于实际清除被逻辑移除的物体。
+建议外部每隔一定帧数（比如50帧）调用一次，因为调用一次需要遍历整个物体列表，如果每帧都调用，可能还没有产生很多待删除物体，但是遍历的时间已经消耗掉了。
+
+附注：为了正确地执行碰撞检测以及在碰撞检测后正确地移除物体，物体的testHit(object)函数应在碰撞到期望的物体时返回true值，其他情况返回false值；
+onHit(object)函数会在testHit(object)返回true时被GameMap自动调用。同时，物体的onHit(object)函数应在碰撞后希望自身消失的情况下返回true，其他情况下返回false。
+
+另外，testHit(object)函数目前是双向的，当它返回true值时，当前对象和object对象的onHit(object)函数都会被GameMap调用。

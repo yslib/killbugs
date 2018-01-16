@@ -1,0 +1,17 @@
+Utility.js 1.2.0：2018/01/09
+
+调试函数listMemberOf(object)更名为listMembersOf(object)。
+
+====================
+Utility.js 1.1.1：2018/01/04
+
+新增调试函数listMemberOf(object)，用于调试，在浏览器控制台打印object的所有属性和方法成员。
+
+====================
+Utility.js 1.1：2018/01/04
+
+新增areEqual(x, y)函数，用于判断两对象内容是否相等。
+注：如果只是判断两对象是否是内存中同一个对象的引用，用obj1 == obj2判断即可。
+
+为系统对象Array（即数组）原型添加函数remove(from, to)，用于完全移除数组中下标从from到to的元素，而不是把它们清空为undefined。
+添加这个函数后，下文任意位置的系统数组对象均可以调用此方法。
