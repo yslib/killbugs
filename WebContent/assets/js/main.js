@@ -646,7 +646,7 @@ Configuration.prototype.getNodesByXPath = function(xpath)
 
 /***
 * GameObject.js
-* Version 1.2.2
+* Version 1.2.3
 * Last Modified 2018/01/16
 ***/
 
@@ -1425,22 +1425,30 @@ PlotPoint.prototype.onHit = function(object)
 
 /***
 * Skill.js
+* Last Modified 2018/01/16
 ***/
 
 function Skill(config)
 {
 	AnimationObject.call(this, config);
 	
-	this.bounding = Circle.makeCircle();
+	this.bounding = Circle.prototype.makeCircle();
 	
-	this.name = "";
-	this.id = "";
-	this.maxLevel = 1;
+	this.name = "Skill_base";
+	this.id = "Skill_base";
+	this.maxLevel = 5;
 	this.level = 0;
 	this.damage = 1;
+	//The direction and the bounding box need be modified
 	this.direction = Direction.NONE;
 	this.speed = 1;
 	this.doubleDamageRate = 0;
+	//response times to the millisecond
+	this.lifeTime = 500;
+	
+	this.released = false;
+	
+	this.mapReference = this;//这里需要修改
 }
 
 Skill.prototype = new AnimationObject();
@@ -1452,7 +1460,6 @@ Skill.prototype.getBoundingBox = function()
 	
 	var left = bounding.center.x - halfEdge;
 	var top = bounding.center.y - halfEdge;
-	
 	return new Rect(left, top, halfEdge * 2, halfEdge * 2);
 }
 
@@ -1466,9 +1473,350 @@ Skill.prototype.getRadius = function()
 	return bounding.radius;
 }
 
-Skill.prototype.release = function() {}
 
-Skill.prototype.toNextLevel = function() {}
+Skill.prototype.testHit = function(object)
+{
+	if (GameMap.isValidMapObject(object))
+	{
+		var box = object.getBoundingBox();
+		
+		return this.bounding.intersects(box) && !this.bounding.contains(box);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+Skill.prototype.onHit = function(object) {
+	
+	//技能击中物体动画
+	
+	return true;
+}
+
+function Skill_Melee(config)
+{
+	Skill.call(this, config);
+	
+	this.name = "Skill_Melee";
+	this.id = "Skill_Melee";
+	this.bounding = Circle.prototype.makeCircle();
+	
+	this.maxLevel = 5;
+	this.level = 0;
+	this.damage = 1;
+	//The direction and the bounding box need be modified
+	this.direction = Direction.NONE;
+	this.speed = 1;
+	this.doubleDamageRate = 0;
+	//response times to the millisecond
+	this.lifeTime = 200;
+	
+	this.released = false;
+	this.mapReference = this;//这里需要修改
+	
+	this.time = 1;
+}
+// inheritance
+Skill_Melee.prototype = Object.create(Skill.prototype);  
+// child.prototype = new parent();
+Skill_Melee.prototype.constructor = Skill_Melee;  
+
+Skill.prototype.testHit = function(object)
+{
+	if (GameMap.isValidMapObject(object))
+	{
+		var box = object.getBoundingBox();
+		
+		return this.bounding.intersects(box) && !this.bounding.contains(box);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+//只调用一次，如果未击中则消失
+Skill_Melee.prototype.release = function() 
+{
+	
+	//说明上一个技能的生命周期结束，开始下一个
+	if(this.lifeTime<=0) {
+		//技能生命周期结束动画
+		GameMap.removeObject(this, 5);
+		this.released = false;
+		this.lifeTime = 200;
+		this.bounding = new circle(this.mapReference.bounding.center,this.radius);
+	}
+	
+	if(!this.released) {
+		
+		//技能物体加进来
+		GameMap.addObject(this, 5);
+		var sqrt2_2 = 0.7071067811865475;
+		switch (this.direction) {
+			case Direction.NONE: this.skillDirection = new Point(0,0);break;
+		
+			case Direction.NORTH: this.skillDirection = new Point(1,0);break;
+			case Direction.EAST: this.skillDirection = new Point(0,1);break;
+			case Direction.SOUTH: this.skillDirection = new Point(-1,0);break;
+			case Direction.WEST: this.skillDirection = new Point(0,-1);break;
+		
+			case Direction.NORTHEAST: this.skillDirection = new Point(sqrt2_2,sqrt2_2);break;
+			case Direction.SOUTHEAST: this.skillDirection = new Point(sqrt2_2,-sqrt2_2);break;
+			case Direction.NORTHWEST: this.skillDirection = new Point(-sqrt2_2,sqrt2_2);break;
+			case Direction.SOUTHWEST: this.skillDirection = new Point(-sqrt2_2,-sqrt2_2);break;
+		
+			default : this.skillDirection = new Point(0,0);break;
+		}
+		this.released = true;
+	}
+	//冷冻时间
+	this.lifeTime--;
+	
+}
+  
+// rewrite function
+Skill_Melee.prototype.toNextLevel = function()
+{
+    if (this.level<this.maxLevel)
+	{
+		this.level = this.level + 1;
+		
+		//Update the properties of the level
+		this.damage = this.damage + 0.3;
+		//
+		//this.speed = 0x7ffffff;
+		
+		this.doubleDamageRate = this.level*0.05;
+		//this.freezingTime = this.freezingTime-this.level*100;
+	}
+	else
+	{
+		//Whether reminding users
+
+	}
+}
+
+function Skill_Ranged(config)
+{
+	Skill.call(this, config);
+	
+	this.name = "Skill_Ranged";
+	this.id = "Skill_Ranged";
+	this.bounding = Circle.prototype.makeCircle();
+	
+	this.maxLevel = 5;
+	this.level = 0;
+	this.damage = 1.5;
+	//The direction and the bounding box need be modified
+	this.direction = Direction.NONE;
+	this.speed = 20/1000;
+	this.doubleDamageRate = 0;
+	//response times to the millisecond
+	this.lifeTime = 500;
+	
+	this.released = false;
+	this.mapReference = this;//这里需要修改
+	
+	this.time = 1;
+}
+// inheritance
+Skill_Ranged.prototype = Object.create(Skill.prototype);  
+// child.prototype = new parent();
+Skill_Ranged.prototype.constructor = Skill_Ranged;  
+  
+
+Skill_Ranged.prototype.testHit = function(object)
+{
+	if (GameMap.isValidMapObject(object))
+	{
+		var box = object.getBoundingBox();
+		
+		return this.bounding.intersects(box) && !this.bounding.contains(box);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+Skill_Ranged.prototype.onHit = function(object) {
+	
+	//技能击中物体动画
+	
+	return true;
+}
+
+Skill_Ranged.prototype.release = function() 
+{
+	//说明上一个技能的生命周期结束，开始下一个
+	if(this.lifeTime<=0) {
+		
+		//技能生命周期结束动画
+		GameMap.removeObject(this, 5);
+		this.released = false;
+		this.lifeTime = 500;
+		this.bounding = new circle(this.mapReference.bounding.center,this.radius);
+	}
+
+	
+	if(!this.released) {
+		
+		//技能物体加进来
+		GameMap.addObject(this, 5);
+		var sqrt2_2 = 0.7071067811865475;
+		switch (this.direction) {
+			case Direction.NONE: this.skillDirection = new Point(0,0);break;
+		
+			case Direction.NORTH: this.skillDirection = new Point(1,0);break;
+			case Direction.EAST: this.skillDirection = new Point(0,1);break;
+			case Direction.SOUTH: this.skillDirection = new Point(-1,0);break;
+			case Direction.WEST: this.skillDirection = new Point(0,-1);break;
+		
+			case Direction.NORTHEAST: this.skillDirection = new Point(sqrt2_2,sqrt2_2);break;
+			case Direction.SOUTHEAST: this.skillDirection = new Point(sqrt2_2,-sqrt2_2);break;
+			case Direction.NORTHWEST: this.skillDirection = new Point(-sqrt2_2,sqrt2_2);break;
+			case Direction.SOUTHWEST: this.skillDirection = new Point(-sqrt2_2,-sqrt2_2);break;
+		
+			default : this.skillDirection = new Point(0,0);break;
+		}
+		this.released = true;
+	}
+
+	//Firing skills along a certain direction.
+	var centerPoint = this.getCenter();
+	var radius = this.getRadius();
+	
+	var newPoint = new Point(skillDirection.x*this.speed+centerPoint.x,
+							skillDirection.y*this.speed+centerPoint.y);
+	
+	//更新技能位置信息
+	var newBounding = new Circle(newPoint, radius);
+	
+	this.bounding = newBounding;
+	
+	this.lifeTime = this.lifeTime-1;
+}
+
+Skill_Ranged.prototype.toNextLevel = function() 
+{
+	if (this.level<this.maxLevel)
+	{
+		//Update the window data: Property entries
+		this.level = this.level + 1;
+		//Update the properties of the level
+		this.damage = this.damage + 0.3;
+		this.speed = 0.5;
+		this.doubleDamageRate = this.level*0.05;
+	}
+	else
+	{
+		//Whether reminding users
+		
+		
+	}
+}
+//大招伤害高，但是速度慢？
+function Skill_Ultimate(config)
+{
+	Skill.call(this, config);
+	
+	this.name = "Skill_Ultimate";
+	this.id = "Skill_Ultimate";
+	this.bounding = Circle.prototype.makeCircle();
+	
+	this.maxLevel = 5;
+	this.level = 0;
+	this.damage = 1.5;
+	//The direction and the bounding box need be modified
+	this.direction = Direction.NONE;
+	this.speed = 20/1000;
+	this.doubleDamageRate = 0;
+	//response times to the millisecond
+	this.lifeTime = 1000;
+	
+	this.released = false;
+	this.mapReference = this;//这里需要修改
+
+}
+// inheritance
+Skill_Ultimate.prototype = Object.create(Skill.prototype);  
+// child.prototype = new parent();
+Skill_Ultimate.prototype.constructor = Skill_Ultimate;  
+
+
+Skill_Ultimate.prototype.release = function() 
+{
+	
+	if(this.lifeTime<=0) {
+		//技能生命周期结束动画
+		GameMap.removeObject(this, 5);
+		this.released = false;
+		this.lifeTime = 1000;
+		this.bounding = new circle(this.mapReference.bounding.center,this.radius);
+	}
+
+	
+	if(!this.released) {
+		
+		//技能物体加进来
+		GameMap.addObject(this, 5);
+		var sqrt2_2 = 0.7071067811865475;
+		switch (this.direction) {
+			case Direction.NONE: this.skillDirection = new Point(0,0);break;
+		
+			case Direction.NORTH: this.skillDirection = new Point(1,0);break;
+			case Direction.EAST: this.skillDirection = new Point(0,1);break;
+			case Direction.SOUTH: this.skillDirection = new Point(-1,0);break;
+			case Direction.WEST: this.skillDirection = new Point(0,-1);break;
+		
+			case Direction.NORTHEAST: this.skillDirection = new Point(sqrt2_2,sqrt2_2);break;
+			case Direction.SOUTHEAST: this.skillDirection = new Point(sqrt2_2,-sqrt2_2);break;
+			case Direction.NORTHWEST: this.skillDirection = new Point(-sqrt2_2,sqrt2_2);break;
+			case Direction.SOUTHWEST: this.skillDirection = new Point(-sqrt2_2,-sqrt2_2);break;
+		
+			default : this.skillDirection = new Point(0,0);break;
+		}
+		this.released = true;
+	}
+	
+	this.lifeTime = this.lifeTime-1;
+	
+	//Firing skills along a certain direction.
+	var centerPoint = this.getCenter();
+	var radius = this.getRadius();
+	
+	
+	var newPoint = new Point(skillDirection.x*this.speed+centerPoint.x,
+							skillDirection.y*this.speed+centerPoint.y);
+	
+	//更新技能位置信息
+	var newBounding = new Circle(newPoint, radius);
+	
+	this.bounding = newBounding;
+}
+
+Skill_Ultimate.prototype.toNextLevel = function()
+{
+    if (this.level<this.maxLevel)
+	{
+		this.level = this.level + 1;
+		
+		//Update the properties of the level
+		this.damage = this.damage + 0.3;
+		//
+		this.speed = 20/1000;
+		this.doubleDamageRate = this.level*0.15;
+		//this.freezingTime = this.freezingTime-this.level*100;
+	}
+	else
+	{
+		//Whether reminding users
+		
+	}
+}
 
 // end of Skill.js
 
@@ -1545,14 +1893,75 @@ Character.prototype.makeSpeech = function() {}
 function Player(config)
 {
 	Character.call(this, config);
-	
+
 	this.experience = 0;
+	this.maxExperience = 10;
+	this.skills[0] = new Skill_Melee(config);
+	this.skills[1] = new Skill_Ranged(config);
+	this.skills[2] = new Skill_Ultimate(config);
+	this.skills[0].mapReference = this;
+	this.skills[1].mapReference = this;
+	this.skills[2].mapReference = this;
+	
+	this.lastBounding = this.bounding;
 }
 
 Player.prototype = new Character();
 Player.prototype.constructor = Player;
 
-Player.prototype.toNextLevel = function() {}
+Player.prototype.onHit = function(object) {
+	
+	if(object instanceof Skill) {
+	
+		if(object.mapReference instanceof Player) {
+			
+			//技能消失，伤害不变
+			return false;
+		}
+		//敌军伤害
+		else {
+			var damage = object.damage;
+			if(Math.random()<=object.doubleDamageRate) {
+				damage = 2*damage;
+			}
+			this.HP = this.HP-damage;
+			if(this.HP<=0) {
+				//自己阵亡
+				GameMap.removeObjcet(this, 5);
+				
+				//跳转失败画面
+				return true;
+			}
+			else {
+				//受伤画面？
+				return false;
+			}
+		}
+	}
+	//非技能，敌人或墙体
+	else {
+		//恢复原来位置，不再向前移动
+		this.bounding = this.lastBounding;
+		return false;
+	}
+	
+}
+
+//如果经验值达到一定值，则进入下一层，同时更新其相应的技能
+Player.prototype.toNextLevel = function() 
+{
+	
+	if(this.experience>=this.maxExperience) {
+		
+		this.experience = this.experience - this.maxExperience;
+		this.HP = this.maxHP;
+		this.MP = this.maxMP;
+		this.speed = this.speed+10;
+		for(var i=0;i<this.skills.length;i++) {		
+			this.skills[i].toNextLevel();
+		}
+	}
+}
 
 Player.prototype.takeDamage = function(damage)
 {
@@ -1561,7 +1970,10 @@ Player.prototype.takeDamage = function(damage)
 
 Player.prototype.onDefeated = function()
 {
+	//出现失败画面
 	
+	return;
+
 }
 
 Player.prototype.makeSpeech = function()
@@ -1569,6 +1981,7 @@ Player.prototype.makeSpeech = function()
 	
 }
 
+//
 Player.prototype.turn = function(dir)
 {
 	direction = dir;
@@ -1576,7 +1989,44 @@ Player.prototype.turn = function(dir)
 
 Player.prototype.stepForward = function()
 {
+	//接收键盘事件
+	var dir = Direction.NONE;
+	this.turn(dir);
+	var sqrt2_2 = 0.7071067811865475;
+	var dirvector = new Point(0,0);
+	switch (this.direction) {
+		case Direction.NONE: dirvector = new Point(0,0);break;
 	
+		case Direction.NORTH: dirvector = new Point(1,0);break;
+		case Direction.EAST: dirvector = new Point(0,1);break;
+		case Direction.SOUTH: dirvector = new Point(-1,0);break;
+		case Direction.WEST: dirvector = new Point(0,-1);break;
+	
+		case Direction.NORTHEAST: dirvector = new Point(sqrt2_2,sqrt2_2);break;
+		case Direction.SOUTHEAST: dirvector = new Point(sqrt2_2,-sqrt2_2);break;
+		case Direction.NORTHWEST: dirvector = new Point(-sqrt2_2,sqrt2_2);break;
+		case Direction.SOUTHWEST: dirvector = new Point(-sqrt2_2,-sqrt2_2);break;
+	
+		default : dirvector = new Point(0,0);break;
+	}
+	var centerPoint = this.bounding.center;
+	var newPoint = new Point(centerPoint.x+this.speed*dirvector.x,centerPoint.y+this.speed*dirvector.y);
+	
+	this.lastBounding = this.bounding;
+	this.bounding = new circle(newPoint, this.bounding.radius);
+	
+}
+
+Player.prototype.releaseSkill = function(number)
+{
+	switch(number) {
+		
+		case 0: this.skills[0].release();break;
+		case 1:	this.skills[1].release();break;
+		case 2: this.skills[2].release();break;
+		
+		
+	}
 }
 
 // end of Player.js
@@ -1609,11 +2059,21 @@ NPC.prototype.makeSpeech = function()
 
 /***
 * Enemy.js
+* Version 1.2
+* Last Modified 2018/01/16
 ***/
 
 function Enemy(config)
 {
 	Character.call(this, config);
+	this.lifecycle = 20;
+	this.currentDirection = Direction.NONE;
+	this.responseDistance = 50;
+	
+	this.directionVector = null;
+	this.possibleDirection = new Array(4);
+	this.player = null;
+	this.time = 5;
 }
 
 Enemy.prototype = new Character();
@@ -1624,28 +2084,410 @@ Enemy.prototype.takeDamage = function(damage)
 	Character.prototype.takeDamage(damage);
 }
 
+Enemy.prototype.testHit = function(object)
+{
+	if (GameMap.isValidMapObject(object))
+	{
+		var box = object.getBoundingBox();
+		
+		return this.bounding.intersects(box) && !this.bounding.contains(box);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+Enemy.prototype.onHit = function(object) {
+	
+	if(object instanceof Skill) {
+		
+		//判断技能是否为敌军
+
+		
+		if(object.mapReference instanceof Enemy) {
+			
+			//敌军自己打到自己，技能消失，血量不变
+			return false;
+		}
+		
+		var damage = object.damage;
+		if(Math.random()<=object.doubleDamageRate) {
+			damage = 2*damage;
+		}
+		this.HP = this.HP-damage;
+		if(this.HP<=0) {
+			//敌军阵亡
+			GameMap.removeObjcet(this, 5);
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	//碰到非技能物体例如player和墙壁，就向其他方向运动
+	else {
+
+		var objectBounding = object.bounding;
+		
+		//都是圆形吗
+		
+		//恢复到原来位置
+			
+		var enemyPoint = this.bounding.center;
+		var playerPoint = player.bounding.center;
+		
+		var enemyDirection = this.directionVector;
+	
+		var axis = 0;
+		if(abs(enemyDirection.x)<abs(enemyDirection.y)) axis = 1;
+		if(enemyDirection.x<0) {
+			enemyDirection.x = -1;
+			
+		}
+		else if(enemyDirection.x>0) {
+			enemyDirection.x=1;
+			
+		}
+		if(enemyDirection.y<0) {
+			enemyDirection.y = -1;
+			
+		}
+		else if(enemyDirection.y>0) {
+			enemyDirection.y=1;
+			
+		}
+		var newBounding = null;
+		if(axis==0)
+			newBounding = new Point(enemyPoint.x,enemyPoint.y-enemyDirection.y*this.speed);
+		else
+			newBounding = new Point(enemyPoint.x-enemyDirection.x*this.speed,enemyPoint.y);
+		
+		
+		//和原来方向相反运动
+		switch(this.currentDirection) {
+			
+			case Direction.WEST: 
+				this.currentDirection = Direction.EAST;
+				newBounding.x = newBounding.x+this.speed;
+				break;
+			case Direction.EAST:
+				this.currentDirection = Direction.WEST;
+				newBounding.x = newBounding.x-this.speed;
+				break;
+			case Direction.NORTH: 
+				this.currentDirection = Direction.SOUTH;
+				newBounding.x = newBounding.y-this.speed;
+				break;
+			case Direction.SOUTH:
+				this.currentDirection = Direction.NORTH;
+				newBounding.x = newBounding.y+this.speed;
+				break;
+			
+		}
+		this.bounding = new Circle(newBounding, this.bounding.radius);
+		this.time = 5;
+		
+		
+	}
+	
+	return false;
+}
+
+
+//敌军的移动，分两种情况探讨，如果在响应距离之内，向player移动。如果在响应距离之外，自由移动。
+Enemy.prototype.doNextStep = function(player) {
+	
+	this.player = player;
+	
+	var circlePlayer = player.bounding;
+	//The two bounding box interect with each other.
+	var centerDistance = this.bounding.centerDistanceWith(circlePlayer);
+	var surfaceDistance = this.bounding.surfaceDistanceWith(circlePlayer);
+	
+	
+	var enemyPoint = this.bounding.center;
+	var playerPoint = player.bounding.center;
+	
+	if(surfaceDistance<=this.responseDistance) {
+		
+		this.directionVector = new Point(playerPoint.x-enemyPoint.x, playerPoint.y-enemyPoint.y);
+		var enemyDirection = this.directionVector;
+		
+		var newBounding = new Point(enemyPoint.x,enemyPoint.y);
+		
+		if(this.time>=0) {
+			
+			switch(this.currentDirection) {
+				
+				case Direction.WEST: 
+					newBounding.x = newBounding.x-this.speed;
+					break;
+				case Direction.EAST:
+					newBounding.x = newBounding.x+this.speed;
+					break;
+				case Direction.NORTH: 
+					newBounding.x = newBounding.y+this.speed;
+					break;
+				case Direction.SOUTH:
+					newBounding.x = newBounding.y-this.speed;
+					break;
+				
+			}
+			this.bounding = new Circle(new Point(enemyPoint.x+enemyDirection.x*this.speed,enemyPoint.y),this.bounding.radius);
+			time--;
+			return;
+		}
+		
+		
+		var axis = 0;
+		if(abs(enemyDirection.x)<abs(enemyDirection.y)) axis = 1;
+		if(enemyDirection.x<0) {
+			enemyDirection.x = -1;
+			this.currentDirection = Direction.WEST;
+		}
+		else if(enemyDirection.x>0) {
+			enemyDirection.x=1;
+			this.currentDirection = Direction.EAST;
+		}
+		if(enemyDirection.y<0) {
+			enemyDirection.y = -1;
+			this.currentDirection = Direction.SOUTH;
+		}
+		else if(enemyDirection.y>0) {
+			enemyDirection.y=1;
+			this.currentDirection = Direction.NORTH;
+		}
+		
+		
+		//说明两者相交了
+		if(surfaceDistance<=0) {
+			//避免这种问题的发生
+			
+			if(axis==0) {
+				this.bounding = new Circle(new Point(enemyPoint.x-enemyDirection.x*this.speed,enemyPoint.y),this.bounding.radius);
+			}
+			
+			else {
+				this.bounding = new Circle(new Point(enemyPoint.x,enemyPoint.y-enemyDirection.y*this.speed),this.bounding.radius);
+			}
+			
+		}
+		else {
+			
+			
+			//确定enemy的移动方向，暂定上下左右
+			if(axis==0) {
+				
+				this.bounding = new Circle(new Point(enemyPoint.x+enemyDirection.x*this.speed,enemyPoint.y),this.bounding.radius);
+			}
+			else {
+				this.bounding = new Circle(new Point(enemyPoint.x,enemyPoint.y+enemyDirection.y*this.speed),this.bounding.radius);			
+			}
+			
+		}
+		
+	}
+	//在响应距离之外，随机移动
+	else {
+		
+		
+		var enemyPoint = this.bounding.center;
+		var playerPoint = player.bounding.center;
+		var newBounding = Circle.prototype.makeCircle();
+		var enemyDirection = Point.prototype.makePoint();
+		//Init direction
+		if(this.direction = Direction.NONE)
+		{
+			var index = Math.floor(Math.random()*4);
+			
+			switch(index)
+			{
+				case 0:enemyDirection.x=1;enemyDirection.y=0;break;
+				case 1:enemyDirection.x=0;enemyDirection.y=1;break;
+				case 2:enemyDirection.x=-1;enemyDirection.y=0;break;
+				case 3:enemyDirection.x=0;enemyDirection.y=-1;break;
+			}
+			newBounding = new Circle(new Point(enemyPoint.x+enemyDirection.x*this.speed,enemyPoint.y+enemyDirection.y*this.speed),this.bounding.radius);
+			
+		}
+		
+		else
+		{
+			switch(this.direction)
+			{
+				case Direction.EAST:enemyDirection.x=1;enemyDirection.y=0;break;
+				case Direction.NORTH:enemyDirection.x=0;enemyDirection.y=1;break;
+				case Direction.WEST:enemyDirection.x=-1;enemyDirection.y=0;break;
+				case Direction.SOUTH:enemyDirection.x=0;enemyDirection.y=-1;break;
+			}
+			newBounding = new Circle(new Point(enemyPoint.x+enemyDirection.x*this.speed,enemyPoint.y+enemyDirection.y*this.speed),this.bounding.radius);
+			
+		}
+		this.bounding = newBounding;
+	}
+}
+
+//是否攻击的操作
+Enemy.prototype.doNextAction = function(player)
+{
+	
+	
+}
+
+function Enemy_Melee(config)
+{
+	Enemy.call(this, config);
+	this.lifecycle = 20;
+	this.currentDirection = Direction.NONE;
+	this.responseDistance = 60;
+	this.skills[0] = new Skill_Melee(config);
+	
+	this.skills[0].mapReference = this;
+	
+}
+Enemy_Melee.prototype = Object.create(Enemy.prototype);  
+Enemy_Melee.prototype.constructor = Enemy_Melee;
+
+// rewrite function
+Enemy_Melee.prototype.doNextAction = function(player)
+{
+	var circlePlayer = player.bounding;
+	//The two bounding box interect with each other.
+	var centerDistance = this.bounding.centerDistanceWith(circlePlayer);
+	var surfaceDistance = this.bounding.surfaceDistanceWith(circlePlayer);
+	
+	for(var i=0;i<this.skills.length;i++)
+	{
+		var skill = skills[i];
+		if(skill.bounding.radius>=centerDistance)
+		{
+			//set atack direction
+			var enemyPoint = this.bounding.center;
+			var circlePoint = circlePlayer.center;
+			var x_axis = circlePoint.x-enemyPoint.x;
+			var y_axis = circlePoint.y-enemyPoint.y;
+			var tempDirection = Direction.NONE;
+			if(abs(x_axis)>abs(y_axis)) {
+				if(x_axis>0) tempDirection = Direction.EAST;
+				else tempDirection = Direction.WEST;
+			}
+			else
+			{
+				if(y_axis>0) tempDirection = Direction.NORTH;
+				else tempDirection = Direction.SOUTH;
+			}
+			
+			//方向和敌军的移动方向一致？
+			//this.skill[i].direction = this.currentDirection;
+			this.skill[i].direction = tempDirection;
+			
+			//Release skill
+			this.skill[i].release();
+			
+			//break;
+		}
+	}
+}
+
+function Enemy_Ranged(config)
+{
+	Enemy.call(this, config);
+	this.lifecycle = 20;
+	this.currentDirection = Direction.NONE;
+	this.responseDistance = 60;
+	this.skills[0] = new Skill_Ranged(config);
+	this.skills[0].mapReference = this;
+}
+Enemy_Ranged.prototype = Object.create(Enemy.prototype);  
+Enemy_Ranged.prototype.constructor = Enemy_Ranged;
+
+// rewrite function
+Enemy_Ranged.prototype.doNextAction = function(player)
+{
+	var circlePlayer = player.bounding;
+	//The two bounding box interect with each other.
+	var centerDistance = this.bounding.centerDistanceWith(circlePlayer);
+	var surfaceDistance = this.bounding.surfaceDistanceWith(circlePlayer);
+	
+	for(var i=0;i<this.skills.length;i++)
+	{
+		var skill = skills[i];
+		if(skill.bounding.radius>=surfaceDistance)
+		{
+			//set atack direction
+			var enemyPoint = this.bounding.center;
+			var circlePoint = circlePlayer.center;
+			var x_axis = circlePoint.x-enemyPoint.x;
+			var y_axis = circlePoint.y-enemyPoint.y;
+			var tempDirection = Direction.NONE;
+			if(abs(x_axis)>abs(y_axis)) {
+				if(x_axis>0) tempDirection = Direction.EAST;
+				else tempDirection = Direction.WEST;
+			}
+			else
+			{
+				if(y_axis>0) tempDirection = Direction.NORTH;
+				else tempDirection = Direction.SOUTH;
+			}
+			this.skill[i].direction = tempDirection;
+			
+			//Release skill
+			this.skill[i].release();
+			//break;
+		}
+	}
+}
+
 // end of Enemy.js
 
 
 /***
 * Boss.js
+* Version 1.2
+* Last Modified 2018/01/16
 ***/
 
 function Boss(config)
 {
 	Enemy.call(this, config);
+	this.skills[0]= new Skill_Melee(config);
+	this.skills[1]= new Skill_Ranged(config);
+	this.skills[2]= new Skill_Ultimate(config);
+	
+	this.skills[0].mapReference = this;
+	this.skills[1].mapReference = this;
+	this.skills[2].mapReference = this;
+	this.HP=1000;
+	this.speed = 100;
+	this.name = "Dead Line";
 }
 
 Boss.prototype = new Enemy();
 Boss.prototype.constructor = Boss;
 
+
+//是否重新实现boss的自动移动
+
 Boss.prototype.onDefeated = function()
 {
+	//Set onDefeated parameter
+	
+	if(this.HP<=0) {
+		
+		//最终死亡动画
+		
+		//战胜跳转，成绩展示等
+		
+	}
 	
 }
 
 Boss.prototype.makeSpeech = function()
 {
+	
+	//情节展示
+	
 	
 }
 
@@ -2197,71 +3039,132 @@ GameViewer.prototype.clearAllMaps = function()
 
 
 /***
-* Main.js
-***/
+ * Main.js
+ ***/
+
+function Queue(){
+    this.queue = [];
+}
+Queue.prototype.push = function (item) {
+    this.queue.push(item);
+}
+Queue.prototype.front = function(){
+    if(this.queue.length > 0)
+        return this.queue[0];
+    else
+        return null;
+}
+Queue.prototype.pop = function(){
+    this.queue.shift();
+}
+Queue.prototype.size = function () {
+    return this.queue.length;
+}
 
 window.onload = Main;
 
 function Main(event)
 {
-	Main.prototype.init(event);
-	
-	console.log("main");
-	
-	this.config = new Configuration("assets/config/config.xml");
-	this.gameMapIDs = ["sceneStart", "scene1", "scene2", "scene2-1",
-		"scene2-2", "scene3", "scene4", "sceneFinal"];
-	
-	this.plotManager = new PlotManager();
-	this.gameViewer = new GameViewer(config);
-	this.gameViewer.addMaps(this.gameMapIDs);
-	this.gameViewer.setCurrentMap(gameMapIDs[0]);
-	
-	console.log(this.gameViewer);
-	
-	this.gameViewer.renderBackground();
-	// this.gameViewer.onRender();
-	
-	// GameLoop
-	// while (true)
-	// {
-	//	
-	// }
-	
-	Main.prototype.cleanUp();
+    this.requestAnimationFrameId = 0;
+    this.frameCount = 0;
+
+    Main.prototype.init(event);
+
+    console.log("In Main");
+
+    this.MessageQueue = new Queue();
+
+    this.plotManager = new PlotManager();
+
+    this.gameViewer = new GameViewer(800, 600);
+    //
+    var config = new Configuration("assets/config/scenes.xml");
+    console.log(config.xmlDoc);
+    //
+    var block = new Block(config);
+    var round = new Round(config);
+
+    console.log(block.bounding);
+    console.log(round.bounding);
+
+    //Enter the Game Loop
+    this.requestAnimationFrameId = requestAnimationFrame(Main.prototype.gameLoop);
+}
+Main.prototype.gameLoop = function () {
+    //
+
+    console.log("In Game Loop:%d",this.frameCount);
+    this.frameCount++;
+    if(this.MessageQueue.size() !== 0){
+        while(this.MessageQueue.size() !== 0){
+            var e = this.MessageQueue.front();
+            if(e instanceof MouseEvent)
+                this.gameViewer.onMouseEvent(e);
+            else if(e instanceof KeyboardEvent)
+                this.gameViewer.onKeyBoardEvent(e);
+            this.MessageQueue.pop();
+        }
+    }
+    if(this.gameViewer.updateFrame() === false){
+        Main.prototype.exit();
+    }
+    this.gameViewer.collisionDetection();
+    if(this.gameViewer.onRender() === false){
+        Main.prototype.exit();
+    }
+    if(this.gameViewer.isSceneDone() === true){
+        this.gameViewer.doScene();
+    }
+    console.log(this.gameViewer.isGameOver());
+    if(this.gameViewer.isGameOver() === true){
+        console.log("isGameOver === true");
+        Main.prototype.exit();
+    }else{
+        this.requestAnimationFrameId = requestAnimationFrame(Main.prototype.gameLoop);
+    }
 }
 
 Main.prototype.init = function(event)
 {
-	console.log("init");
-	
-	window.onmousedown = Main.prototype.onMouseDown;
-	window.onkeydown = Main.prototype.onKeyDown;
+    console.log("init");
+    window.onmousedown = Main.prototype.onMouseDown;
+    window.onkeydown = Main.prototype.onKeyDown;
 }
 
 Main.prototype.cleanUp = function()
 {
-	console.log("clean up");
+    console.log("clean up");
+    window.onmousedown = null;
+    window.onkeydown = null;
 }
+Main.prototype.exit = function(){
+    console.log("In Exit Function");
+    cancelAnimationFrame(this.requestAnimationFrameId);
+    Main.prototype.cleanUp();
 
+}
 Main.prototype.onMouseDown = function(event)
 {
-	
+    //console.log("on mouse down");
+    //console.log(event instanceof MouseEvent);
+    this.MessageQueue.push(event);
 }
 
 Main.prototype.onLeftButton = function(event)
 {
-	
+    console.log("on left button ");
+    //this.MessageQueue.push(event);
 }
 
 Main.prototype.onRightButton = function(event)
 {
-	
+    console.log("on right button ");
+    //this.MessageQueue.push(event);
 }
 
 Main.prototype.onKeyDown = function(event)
 {
-	
+    this.MessageQueue.push(event);
 }
 
 // end of Main.js
