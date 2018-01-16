@@ -1,5 +1,0 @@
-Player_And_NPC.js 1.1: 2018/01/16
-
-实现了player的属性设置，onHit函数，toNextLevel函数，以及stepForward（移动方向和移动位置）函数。
-
-实现了放出技能对自身的引用，以供Enemy类判断是否掉血，避免同类角色伤害
