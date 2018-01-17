@@ -647,13 +647,13 @@ Configuration.prototype.getNodesByXPath = function(xpath)
 /***
 * GameObject.js
 * Version 1.2.3
-* Last Modified 2018/01/16
+* Last Modified 2018/01/17
 ***/
 
 function GameObject(config)
 {
 	this.config = config;
-	this.texture = null;
+	this.texture = new Image();
 	this.bounding = null;
 	this.mapReference = null;
 }
@@ -673,9 +673,14 @@ GameObject.prototype.testHit = function(object) {}
 
 GameObject.prototype.onHit = function(object) {}
 
-GameObject.prototype.initForRendering = function(webgl) {}
+GameObject.prototype.loadResources = function(filename) {}
 
-GameObject.prototype.areResourcesReady = function() {}
+GameObject.prototype.onResourcesLoad = function() {}
+
+GameObject.prototype.areResourcesReady = function()
+{
+	return true;
+}
 
 GameObject.prototype.onRender = function(webgl) {}
 
@@ -686,15 +691,13 @@ GameObject.prototype.updateState = function() {}
 
 /***
 * GameMap.js
-* Version 1.2.1
-* Last Modified 2018/01/16
+* Version 1.3.0
+* Last Modified 2018/01/17
 */
 
 function GameMap(config)
 {
-	GameObject.call(this, config);
-	
-	this.mapReference = this;
+	this.config = config;
 	
 	this.bounding = Rect.makeRect();
 	this.view = Rect.makeRect();
@@ -702,13 +705,12 @@ function GameMap(config)
 	this.id = "";
 	this.name = "";
 	
+	this.texture = null;
+	
 	this.objects = null;
 	
 	this.resetMap();
 }
-
-GameMap.prototype = new GameObject();
-GameMap.prototype.constructor = GameMap;
 
 GameMap.UNKNOWN = -1;
 GameMap.MAP = 0;
@@ -722,6 +724,26 @@ GameMap.LAYERS_COUNT = 6;
 GameMap.prototype.getBoundingBox = function()
 {
 	return this.bounding;
+}
+
+GameMap.prototype.getMapObject = function()
+{
+	if (this.objects.length > GameMap.MAP
+		&& this.objects[GameMap.MAP].length > 0)
+	{
+		return this.objects[GameMap.MAP][0];
+	}
+	return null;
+}
+
+GameMap.prototype.getViewObject = function()
+{
+	if (this.objects.length > GameMap.MAP
+		&& this.objects[GameMap.MAP].length > 1)
+	{
+		return this.objects[GameMap.MAP][1];
+	}
+	return null;
 }
 
 GameMap.prototype.testHit = function(object)
@@ -740,9 +762,40 @@ GameMap.prototype.testHit = function(object)
 
 GameMap.prototype.onHit = function(object) {}
 
+GameMap.prototype.setBackground = function(filename)
+{
+	var mapObject = this.getMapObject();
+	if (mapObject)
+	{
+		mapObject.loadResources(filename);
+		this.texture = mapObject.texture;
+	}
+}
+
+GameMap.prototype.areResourcesReady = function()
+{
+	var areReady = true;
+	for (let layer = GameMap.MAP; layer < GameMap.LAYERS_COUNT; layer++)
+	{
+		for (let j = 0; j < this.objects[layer].length; j++)
+		{
+			if (this.objects[layer][j])
+			{
+				areReady = areReady && this.objects[layer][j].areResourcesReady();
+			}
+		}
+	}
+	return areReady;
+}
+
+GameMap.prototype.renderBackground = function(webgl)
+{
+	webgl.drawPrimitive(this.bounding, this.view, this.texture);
+}
+
 GameMap.prototype.onRender = function(webgl)
 {
-	// render(this.texture);
+	this.renderBackground(webgl);
 	
 	// Ignore hidden objects.
 	for (let i = GameMap.HIDDEN + 1; i < GameMap.LAYERS_COUNT; i++)
@@ -750,12 +803,9 @@ GameMap.prototype.onRender = function(webgl)
 		for (let j = 0; j < this.objects[i].length; j++)
 		{
 			this.objects[i][j].onRender(webgl);
-			webgl.drawPrimitive(this.objects[i][j]);
 		}
 	}
 }
-
-GameMap.prototype.updateState = function() {}
 
 GameMap.isValidMapObject = function(object)
 {
@@ -786,6 +836,7 @@ GameMap.prototype.load = function(mapID)
 	var objectClass = "";
 	var objectLayer = GameMap.UNKNOWN;
 	var objectType = "";
+	var imageFile = "";
 	
 	var layerNames = ["map", "hidden", "ground", "middle", "upper", "flowing"];
 	var xPaths = [];
@@ -813,15 +864,17 @@ GameMap.prototype.load = function(mapID)
 		allGroups[i] = this.config.getNodesByXPath(xPath);
 	}
 	
-	for (let layer = 0; layer < GameMap.LAYERS_COUNT; layer++)
+	for (let layer = GameMap.MAP; layer < GameMap.LAYERS_COUNT; layer++)
 	{
 		for (let group = 0; group < allGroups[layer].length; group++)
 		{
 			try
 			{
 				objectLayer = eval("GameMap."
-					+ allGroups[layer][group].getAttribute("layer").toUpperCase().valueOf());
+					+ allGroups[layer][group].getAttribute("layer")
+					.toUpperCase().valueOf());
 				objectClass = allGroups[layer][group].getAttribute("class").valueOf();
+				imageFile = allGroups[layer][group].getAttribute("img").valueOf();
 			}
 			catch (e)
 			{
@@ -872,6 +925,11 @@ GameMap.prototype.load = function(mapID)
 							continue;
 						}
 						
+						if (imageFile)
+						{
+							gameObject.loadResources(imageFile);
+						}
+						
 						this.addObject(gameObject, objectLayer);
 					}
 					catch (e)
@@ -886,23 +944,18 @@ GameMap.prototype.load = function(mapID)
 	
 	try
 	{
-		if (this.objects.length > 0 && this.objects[GameMap.MAP].length > 1)
-		{
-			this.bounding = this.objects[GameMap.MAP][0].bounding;
-			this.view = this.objects[GameMap.MAP][1].bounding;
-		}
+		var mapObject = this.getMapObject();
+		var viewObject = this.getViewObject();
+		
+		this.bounding = mapObject.bounding;
+		this.texture = mapObject.texture;
+		
+		this.view = viewObject.bounding;
 	}
 	catch (e)
 	{
 		console.log(e.message);
 	}
-	
-	this.onLoad();
-}
-
-GameMap.prototype.onLoad = function()
-{
-	
 }
 
 GameMap.prototype.setView = function(x, y, width, height)
@@ -1119,21 +1172,55 @@ GameMap.prototype.resetMap = function()
 
 /***
 * EnvironmentItem.js
+* Version 1.0.0
+* Last Modified 2018/01/17
 ***/
 
 function EnvironmentItem(config)
 {
 	GameObject.call(this, config);
+	
+	this.texture = null;
+	this.textureLoaded = false;
 }
 
 EnvironmentItem.prototype = new GameObject();
 EnvironmentItem.prototype.constructor = EnvironmentItem;
+
+EnvironmentItem.prototype.loadResources = function(filename)
+{
+	if (!this.texture)
+	{
+		this.texture = new Image();
+	}
+	this.textureLoaded = false;
+	this.texture.onload = this.onResourcesLoad;
+	this.texture.src = filename;
+}
+
+EnvironmentItem.prototype.onResourcesLoad = function()
+{
+	if (this.texture)
+	{
+		this.textureLoaded = true;
+		this.texture.onload = null;
+	}
+}
+
+EnvironmentItem.prototype.areResourcesReady = function()
+{
+	return this.textureLoaded;
+}
+
+EnvironmentItem.prototype.updateState = function() {}
 
 // end of EnvironmentItem.js
 
 
 /***
 * Block.js
+* Version 1.0.0
+* Last Modified 2018/01/17
 ***/
 
 function Block(config)
@@ -1141,6 +1228,12 @@ function Block(config)
 	EnvironmentItem.call(this, config);
 	
 	this.bounding = Rect.makeRect();
+	
+	this.texture = new Image();
+	this.textureFile = "";
+	this.textureLoaded = false;
+	
+	this.mapReference = null;
 }
 
 Block.prototype = new EnvironmentItem();
@@ -1148,23 +1241,42 @@ Block.prototype.constructor = Block;
 
 Block.prototype.getBoundingBox = function()
 {
-	return bounding;
+	return this.bounding;
 }
 
 Block.prototype.testHit = function(object)
 {
-	
+	if (object instanceof GameObject)
+	{
+		var box = object.getBoundingBox();
+		if (box)
+		{
+			return this.bounding.intersects(box);
+		}
+	}
+	return false;
 }
 
 Block.prototype.onHit = function(object)
 {
-	
+	return false;
+}
+
+Block.prototype.onRender = function(webgl)
+{
+	if (this.mapReference)
+	{
+		webgl.drawPrimitive(this.bounding, this.mapReference.view, this.texture);
+	}
 }
 
 // end of Block.js
 
+
 /***
 * Round.js
+* Version 1.0.0
+* Last Modified 2018/01/17
 ***/
 
 function Round(config)
@@ -1194,12 +1306,34 @@ Round.prototype.getRadius = function()
 
 Round.prototype.testHit = function(object)
 {
-	
+	if (object instanceof GameObject)
+	{
+		var box = object.bounding;
+		if (box instanceof Circle)
+		{
+			return this.bounding.intersects(box);
+		}
+		else if (box instanceof Rect)
+		{
+			return box.intersects(this.bounding.innerBounding());
+		}
+	}
+	return false;
 }
 
 Round.prototype.onHit = function(object)
 {
-	
+	return false;
+}
+
+Round.prototype.onRender = function(webgl)
+{
+	if (this.mapReference)
+	{
+		webgl.drawPrimitive(this.bounding.outerBounding(),
+			this.mapReference.view,
+			this.texture);
+	}
 }
 
 // end of Round.js
@@ -2541,8 +2675,8 @@ PlotManager.prototype.triggerNextPlot = function()
 
 /***
 * WebGL.js
-* Version 1.2.1
-* Last Modified 2018/01/16
+* Version 1.2.2
+* Last Modified 2018/01/17
 ***/
 
 // WebGL wrapper for convenience
@@ -2589,6 +2723,24 @@ WebGL.prototype.init = function(canvas)
 		{
 			this.arrayData.data[i] = 0;
 		}
+		
+		this.arrayData.data[3] = 0.0;
+		this.arrayData.data[4] = 0.0;
+		
+		this.arrayData.data[12] = 1.0;
+		this.arrayData.data[13] = 0.0;
+		
+		this.arrayData.data[21] = 0.0;
+		this.arrayData.data[22] = 1.0;
+		
+		this.arrayData.data[30] = 0.0;
+		this.arrayData.data[31] = 1.0;
+		
+		this.arrayData.data[39] = 1.0;
+		this.arrayData.data[40] = 0.0;
+		
+		this.arrayData.data[48] = 1.0;
+		this.arrayData.data[49] = 1.0;
 	}
 }
 
@@ -2657,26 +2809,26 @@ WebGL.prototype.compileDefaultShaderProgram = function()
 {
 	var vertexShaderSource =
     "    attribute vec3 v3Position;" +
-	"    attribute vec2 inTextureCoord;" +
-	"    varying vec2 outTextureCoord;" +
-	"    attribute vec4 inAdditionColor;" +
-	"    varying vec4 outAdditionColor;" +
+	"    attribute vec2 aTextureCoord;" +
+	"    varying vec2 vTextureCoord;" +
+	"    attribute vec4 aAdditionColor;" +
+	"    varying vec4 vAdditionColor;" +
     "    void main(void)"+
 	"    {" +
     "        gl_Position = vec4(v3Position, 1.0);" +
-	"        outTextureCoord = inTextureCoord;" +
-	"        outAdditionColor = inAdditionColor;" +
+	"        vTextureCoord = aTextureCoord;" +
+	"        vAdditionColor = aAdditionColor;" +
     "    }";
 	var fragmentShaderSource =
 	"    precision mediump float;" +
-	"    uniform sampler2D u_Sampler;" +
-	"    varying vec2 outTextureCoord;" +
-	"    varying vec4 outAdditionColor;" +
+	"    uniform sampler2D uSampler;" +
+	"    varying vec2 vTextureCoord;" +
+	"    varying vec4 vAdditionColor;" +
     "    void main(void)" +
 	"    {" +
-    "        gl_FragColor = texture2D(u_Sampler, outTextureCoord)" +
-	"            + outAdditionColor;" +
-	"        gl_FragColor = outAdditionColor;" +
+    "        gl_FragColor = texture2D(uSampler," +
+	"            vec2(vTextureCoord.s, vTextureCoord.t))" +
+	"            + vAdditionColor;" +
     "    }";
 	this.compileShaderProgram(vertexShaderSource, fragmentShaderSource);
 }
@@ -2705,17 +2857,14 @@ WebGL.prototype.clearScreen = function(color)
 		| this.gl.GL_STENCIL_BUFFER_BIT);
 }
 
-WebGL.prototype.makeArrayData = function(object, additionalColor)
+WebGL.prototype.makeArrayData = function(box, view, additionalColor)
 {
-	var gl = this.gl;
-	
-	var view = object.mapReference.view;
-	var box = object.bounding;
-	
-	if (object.bounding instanceof Circle)
+	if (!(box instanceof Rect) || !(view instanceof Rect))
 	{
-		box = object.bounding.outerBounding();
+		return false;
 	}
+	
+	var gl = this.gl;
 	
 	var xOffset = -1;
 	var yOffset = 1;
@@ -2724,6 +2873,8 @@ WebGL.prototype.makeArrayData = function(object, additionalColor)
 	
 	var corners = [box.topLeft(), box.topRight(),
 				box.bottomLeft(), box.bottomRight()];
+				
+	var color = additionalColor? additionalColor : Color.makeColor();
 	
 	for (let i = 0; i < corners.length; i++)
 	{
@@ -2735,42 +2886,32 @@ WebGL.prototype.makeArrayData = function(object, additionalColor)
 	// So array length is 54.
 	this.arrayData.data[0] = corners[0].x;
 	this.arrayData.data[1] = corners[0].y;
-	this.arrayData.data[3] = 0.0;
-	this.arrayData.data[4] = 0.0;
 	
 	this.arrayData.data[9] = corners[1].x;
 	this.arrayData.data[10] = corners[1].y;
-	this.arrayData.data[12] = 1.0;
-	this.arrayData.data[13] = 0.0;
 	
 	this.arrayData.data[18] = corners[2].x;
 	this.arrayData.data[19] = corners[2].y;
-	this.arrayData.data[21] = 0.0;
-	this.arrayData.data[22] = 1.0;
 	
 	this.arrayData.data[27] = corners[2].x;
 	this.arrayData.data[28] = corners[2].y;
-	this.arrayData.data[30] = 0.0;
-	this.arrayData.data[31] = 1.0;
 	
 	this.arrayData.data[36] = corners[1].x;
 	this.arrayData.data[37] = corners[1].y;
-	this.arrayData.data[39] = 1.0;
-	this.arrayData.data[40] = 0.0;
 	
 	this.arrayData.data[45] = corners[3].x;
 	this.arrayData.data[46] = corners[3].y;
-	this.arrayData.data[48] = 1.0;
-	this.arrayData.data[49] = 1.0;
 	
 	// Set additional color values.
 	for (let j = 0; j < this.arrayData.vCount; j++)
 	{
-		this.arrayData.data[j * 9 + 5] = additionalColor.r;
-		this.arrayData.data[j * 9 + 6] = additionalColor.g;
-		this.arrayData.data[j * 9 + 7] = additionalColor.b;
-		this.arrayData.data[j * 9 + 8] = additionalColor.a;
+		this.arrayData.data[j * 9 + 5] = color.r;
+		this.arrayData.data[j * 9 + 6] = color.g;
+		this.arrayData.data[j * 9 + 7] = color.b;
+		this.arrayData.data[j * 9 + 8] = color.a;
 	}
+	
+	return true;
 }
 
 WebGL.prototype.image2Texture = function(image)
@@ -2779,19 +2920,19 @@ WebGL.prototype.image2Texture = function(image)
 	var textureID = gl.createTexture();
 	
 	gl.bindTexture(gl.TEXTURE_2D, textureID);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 	gl.bindTexture(gl.TEXTURE_2D, null);
 	
 	return textureID;
 }
 
-WebGL.prototype.drawPrimitive = function(object, image, additionalColor)
+WebGL.prototype.drawPrimitive = function(box, view, image, additionalColor)
 {
-	if (!(object instanceof GameObject) || !image)
+	if (!image || !image.src)
 	{
 		return;
 	}
@@ -2805,19 +2946,13 @@ WebGL.prototype.drawPrimitive = function(object, image, additionalColor)
 	var locInTextureCoord = 0;
 	var locInAdditionColor = 0;
 	
-	// Sampler for textures.
-	var sampler = null;
-	var texture = 0;
-	
-	var color = additionalColor;
-	
-	if (!additionalColor || !(additionalColor instanceof Color))
-	{
-		color = new Color(0.0, 0.0, 0.0, 1.0);
-	}
+	var textureID = 0;
 	
 	// Make array data.
-    this.makeArrayData(object, color);
+    if (!this.makeArrayData(box, view, additionalColor))
+	{
+		return;
+	}
 
 	// Compile shaders.
 	this.compileDefaultShaderProgram();
@@ -2837,15 +2972,15 @@ WebGL.prototype.drawPrimitive = function(object, image, additionalColor)
 	gl.bindBuffer(gl.ARRAY_BUFFER, dataBuffer);
 	// Copy data to WebGL buffer.
 	gl.bufferData(gl.ARRAY_BUFFER,
-		new Float32Array(this.arrayData.vertexes), gl.STATIC_DRAW);
+		new Float32Array(this.arrayData.data), gl.STATIC_DRAW);
 	
 	// Tell WebGL to use this array buffer to draw!
 	gl.bindBuffer(gl.ARRAY_BUFFER, dataBuffer);
 	
 	// Tell WebGL how to explain the data array.
 	locV3Position = gl.getAttribLocation(this.shaderProgram, "v3Position");
-	locInTextureCoord = gl.getAttribLocation(this.shaderProgram, "inTextureCoord");
-	locInAdditionColor = gl.getAttribLocation(this.shaderProgram, "inAdditionColor");
+	locInTextureCoord = gl.getAttribLocation(this.shaderProgram, "aTextureCoord");
+	locInAdditionColor = gl.getAttribLocation(this.shaderProgram, "aAdditionColor");
     // Attributes: positionIndex, size, type, normalized, stride(interval), offset
 	gl.vertexAttribPointer(locV3Position, 3, gl.FLOAT, false, 36, 0);
 	gl.vertexAttribPointer(locInTextureCoord, 2, gl.FLOAT, false, 36, 12);
@@ -2856,10 +2991,10 @@ WebGL.prototype.drawPrimitive = function(object, image, additionalColor)
 	gl.enableVertexAttribArray(locInAdditionColor);
 
 	// Use texture.
-	sampler = gl.getUniformLocation(this.shaderProgram, "u_Sampler");
-	this.image2Texture(image);
+	textureID = this.image2Texture(image);
 	gl.activeTexture(gl.TEXTURE0);
-	gl.uniform1i(sampler, 0);
+	gl.bindTexture(gl.TEXTURE_2D, textureID);
+	gl.uniform1i(gl.getUniformLocation(this.shaderProgram, "uSampler"), 0);
 
     // Final draw.
 	// Attributes: mode, first, count
@@ -2871,8 +3006,8 @@ WebGL.prototype.drawPrimitive = function(object, image, additionalColor)
 
 /***
 * GameViewer.js
-* Version 1.2.1
-* Last Modified 2018/01/16
+* Version 1.2.2
+* Last Modified 2018/01/17
 */
 
 function GameViewer(config)
@@ -2890,8 +3025,6 @@ function GameViewer(config)
 	this.currentMapIndex = 0;
 	
 	this.backgroundColor = new Color(0.05, 0.0, 0.125, 1);
-	this.backgroundImageFile = "";
-	this.backgroundImage = new Image();
 	
 	this.initViewer();
 }
@@ -2911,14 +3044,71 @@ GameViewer.prototype.initViewer = function()
 	
 	this.webGL = new WebGL(this.gameCanvas);
     this.webGL.setViewport(0, 0, width, height);
-	
-	this.backgroundImageFile = "assets/images/ground.png";
-	this.backgroundImage.src = this.backgroundImageFile;
+}
+
+GameViewer.prototype.onMouseEvent = function(event)
+{
+    console.log("In GameViewer MouseEvent");
+
+}
+
+GameViewer.prototype.onKeyBoardEvent = function(event)
+{
+    console.log("In GameViewer KeyBoardEvent");
+    if (event.which === 27)
+	{
+        console.log("Esc");
+        this.doGameOver();
+        this.gameOver = true;
+    }
+}
+
+GameViewer.prototype.isSceneDone = function()
+{
+    return this.sceneDone;
+}
+
+GameViewer.prototype.doScene = function()
+{
+    //Some process between two scenes
+
+    this.setSceneState(false);
+}
+
+GameViewer.prototype.isGameOver = function()
+{
+    return this.gameOver;
+}
+
+GameViewer.prototype.setSceneState = function(state)
+{
+    this.sceneDone = state;
+}
+
+GameViewer.prototype.doGameOver = function()
+{
+    this.gameOver = true;
+    console.log("gameOver:", this.gameOver);
+}
+
+GameViewer.prototype.collisionDetection = function()
+{
+    if (this.isValidMapIndex(this.currentMapIndex))
+    {
+        this.maps[this.currentMapIndex].processObjectHits();
+    }
+}
+
+GameViewer.prototype.updateFrame = function()
+{
+    //update objects actions here and return true
+
+    return (true);
 }
 
 GameViewer.prototype.onRender = function()
 {
-	this.renderBackground();
+	this.drawBackground();
 	
 	if (this.isValidMapIndex(this.currentMapIndex))
 	{
@@ -2926,10 +3116,36 @@ GameViewer.prototype.onRender = function()
 	}
 }
 
-GameViewer.prototype.renderBackground = function()
+GameViewer.prototype.drawBackground = function()
 {
 	this.webGL.clearScreen(this.backgroundColor);
-	this.webGL.drawPrimitive(this.getCurrentMap(), this.backgroundImage);
+}
+
+GameViewer.prototype.viewAt = function(point)
+{
+	var currentMap = this.getCurrentMap();
+	if (currentMap)
+	{
+		currentMap.viewAt(point);
+	}
+}
+
+GameViewer.prototype.scrollView = function(offsetX, offsetY)
+{
+	var currentMap = this.getCurrentMap();
+	if (currentMap)
+	{
+		currentMap.scrollView(offsetX, offsetY);
+	}
+}
+
+GameViewer.prototype.setViewTopLeft = function(x, y)
+{
+	var currentMap = this.getCurrentMap();
+	if (currentMap)
+	{
+		currentMap.setViewTopLeft(x, y);
+	}
 }
 
 GameViewer.prototype.isMapListEmpty = function()
@@ -3076,16 +3292,20 @@ function Main(event)
 
     this.plotManager = new PlotManager();
 
-    this.gameViewer = new GameViewer(800, 600);
-    //
-    var config = new Configuration("assets/config/scenes.xml");
-    console.log(config.xmlDoc);
-    //
-    var block = new Block(config);
-    var round = new Round(config);
-
-    console.log(block.bounding);
-    console.log(round.bounding);
+    this.config = new Configuration("assets/config/config.xml");
+	this.gameMapIDs = ["sceneStart", "scene1", "scene2", "scene2-1",
+		"scene2-2", "scene3", "scene4", "sceneFinal"];
+	
+	this.gameViewer = new GameViewer(config);
+	this.gameViewer.addMaps(this.gameMapIDs);
+	this.gameViewer.setCurrentMap(gameMapIDs[0]);
+	
+	console.log(this.gameViewer);
+	
+	// Testing code for rendering.
+	this.gameViewer.viewAt(new Point(54, 78));
+	this.gameViewer.onRender();
+	// End of testing code.
 
     //Enter the Game Loop
     this.requestAnimationFrameId = requestAnimationFrame(Main.prototype.gameLoop);
