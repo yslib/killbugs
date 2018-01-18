@@ -1,0 +1,43 @@
+GameObject.js 1.2.4：2018/01/17
+
+删除虚方法initForRendering(webgl)。
+
+属性texture在对象构造时默认生成一个空的图像对象。
+
+函数areResourcesReady设置默认返回值true。
+
+====================
+GameObject.js 1.2.3：2018/01/16
+
+函数isResourcesReady()更名为areResourcesReady()。
+
+====================
+GameObject.js 1.2.2：2018/01/16
+
+新增isResourcesReady()虚函数，用于检查绘制所需的图片资源是否已经加载完毕。
+
+====================
+GameObject.js 1.2.1：2018/01/16
+
+GameObject基类增加虚方法initForRendering(webgl)，由外部在第一次绘制前调用，
+让子类在onRender(webgl)被调用前有机会加载纹理等图片资源。
+
+====================
+GameObject.js 1.2.0：2018/01/15
+
+GameObject基类新增虚方法updateState()，无参数，用于各种物体的状态更新，由GameMap负责每帧调用。
+主要需要实现这个虚方法的子类有Enemy类族、Skill类族，可以把每帧“行动一步”的逻辑写在updateState里面，然后外部每帧自动调用。
+现在，GameMap可以完全管理场景内所有物体的行为和碰撞检测。
+
+GameObject基类的onRender方法增加参数webgl，是由外部传入的WebGL对象，供具体子类绘制时使用。
+
+====================
+GameObject.js 1.1.1：2018/01/05
+
+GameObject基类新增继承属性bounding，表示一个抽象的包围盒（碰撞箱），
+子类需要覆盖这个属性（在构造函数里通过this.bounding = new SomeShape()覆盖）。
+
+GameObject基类新增getBoundingType方法，用于获取this.bounding的类型，无需覆盖。
+
+注意：GameObject的继承属性mapReference是一个指向当前游戏地图GameMap对象的引用。
+如果该对象由GameMap对象初始化，这个引用会自动挂接，否则需要手动挂接。

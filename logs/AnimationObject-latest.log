@@ -1,0 +1,3 @@
+AnimationObject.js Version 1.2.0：2018/01/18
+
+整理从GameObject继承下来的虚函数。
