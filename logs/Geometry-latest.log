@@ -1,0 +1,84 @@
+Geometry.js 1.2.6：2018/01/18
+
+Rect和Circle类新增awayWith函数，用于判断两矩形或者两圆是否相离。
+
+Color类新增函数addColor和mixColor，分别用于颜色相加与相乘（相当于向量加和向量点乘）。
+
+====================
+Geometry.js 1.2.5：2018/01/15
+
+修正了Circle类中Rect.makeRect镜头函数的调用问题。
+
+====================
+Geometry.js 1.2.4：2018/01/15
+
+修正了Circle类setCircle函数的问题。
+
+====================
+Geometry.js 1.2.3：2018/01/15
+
+Shape虚基类新增deepCopy函数，用于对象的深复制。
+
+Point、Rect、Circle、Direction和Color类新增deepCopy函数，用于深复制。
+
+====================
+Geometry.js 1.2.2：2018/01/14
+
+Point、Rect、Circle、Direction和Color类新增set函数，可以在不构造新对象的情况下一次设置所有几何属性。
+
+Color类新增静态方法makeColor()，用于获得一个空的（全黑）颜色对象。
+
+====================
+Geometry.js 1.2.1：2018/01/09
+
+有关于坐标转换的更新.
+
+新增虚基类Shape，拥有虚函数transfer(xShift, yShift, xStretch, yStretch)，用于坐标系转换。
+现在所有几何类（包括Point、Rect、Circle和Direction）均派生自Shape。
+
+====================
+Geometry.js 1.1.4：2018/01/05
+
+修正一个不规范语法（乘方（**）），可能导致解释器报错。
+
+====================
+Geometry 1.1.3 ：2018/01/05
+
+Point类
+	新增向量方法，现在可以执行向量加、减、点乘、求夹角、求长度、单位化。
+	
+Direction类
+	新增方向值转偏移向量函数，返回一个向量（Point），x和y值的正、负和零表示在对应的坐标轴上的正方向、负方向和无方向。
+	注意，这里的坐标轴x轴正方形从左向右，y轴正方向从上到下，与屏幕坐标系相同。
+
+====================
+Geometry.js 1.1.2 ：2018/01/04
+
+紧急补丁：Direction类修正静态成员定义方式。Direction中定义的各个方向可作为角色或者技能的统一方向值。
+
+====================
+Geometry.js 1.1.1：2018/01/04
+
+微调，基本不影响使用，Point、Rect和Circle的make方法改为静态函数，
+调用方式由ClassName.prototype.makeShape()改为ClassName.makeShape()
+
+====================
+Geometry.js 1.1：2018/01/03
+
+Point类
+	新增distanceWith(point)函数，用于求取两点间欧式距离。
+	
+Rect类
+	新增获取四角点函数；
+		新增contains(shape)函数，用于判断当前矩形是否包含一个点或另一个矩形；
+		新增intersects(rect)函数，用于判断两矩形是否有相交部分（包括内含）。
+		
+Circle类
+	新增centerDistanceWith(circle)函数，用于求取两圆圆心距离；
+	新增surfaceDistanceWith(circle)函数，用于求取两圆圆上距离；
+	新增contains(shape)函数，用于判断当前圆是否包含一个点或者另一个圆；
+	新增intersects(circle)函数，用于判断当前圆是否与另一个圆有相交部分（包括内含）；
+	新增innerBounding()函数，用于求取当前圆的内接正方形；
+	新增outerBounding()函数，用于求取当前圆的外接正方形。
+
+建议物体的求交程序（testHit）直接调用Geometry.js里面的成员函数，矩形与圆求交时建议与圆的内接正方形求交，以简化计算。

@@ -1,0 +1,88 @@
+GameViewer.js 1.3.0：2018/01/18
+
+初步完善了供Main调用的各种接口。
+
+整理视野逻辑。
+
+====================
+GameViewer.js 1.2.1：2018/01/16
+
+添加消息队列。把键盘鼠标消息发送到GameViewer中去执行。
+
+以及esc 退出游戏
+loop:
+    if(this.MessageQueue.size() !== 0){
+        while(this.MessageQueue.size() !== 0){
+            var e = this.MessageQueue.front();
+            if(e instanceof MouseEvent)
+                this.gameViewer.onMouseEvent(e);
+            else if(e instanceof KeyboardEvent)
+                this.gameViewer.onKeyBoardEvent(e);
+            this.MessageQueue.pop();
+        }
+    }
+    if(this.gameViewer.updateFrame() === false){
+        Main.prototype.exit();
+    }
+    this.gameViewer.collisionDetection();
+    if(this.gameViewer.onRender() === false){
+        Main.prototype.exit();
+    }
+    if(this.gameViewer.isSceneDone() === true){
+        this.gameViewer.doScene();
+    }
+    console.log(this.gameViewer.isGameOver());
+    if(this.gameViewer.isGameOver() === true){
+        console.log("isGameOver === true");
+        Main.prototype.exit();
+    }else{
+        this.requestAnimationFrameId = requestAnimationFrame(Main.prototype.gameLoop);
+    }
+end
+
+
+每次循环 
+调用 updateFrame()进行行为更新
+
+调用colisionDetection()进行Objects的碰撞检测。
+
+onRender() 绘制所有要绘制的Objects。
+
+isSceneDone() 如果当前场景结束，那么调用doScene() 进行场景间的处理
+
+isGameOver() 如果游戏结束，退出循环
+
+
+给GameViewer 增加了下列接口
+
+doGameOver()
+调用后退出游戏。
+
+isSceneDonw()
+返回是否当前场景结束
+doScene()
+两个场景之间的一些操作，并且要在最后调用setSceneState(true)
+
+isGameOver()
+返回是否游戏结束
+setSceneState()
+设置场景状态 true/false
+
+collisionDetection()
+碰撞检测。直接调用GameMap的processObjectHits() 
+
+updateFrame()
+所有更新游戏Objects行为的代码都放在这里。
+
+
+以及修改了一些其他的语法错误
+
+====================
+GameViewer.js 1.1.2：2018/01/09
+
+添加了WebGL相关接口的更丰富的骨架，注意绘制时为每个形状对象传入的GL对象。
+
+====================
+GameViewer.js 1.1：2018/01/05
+
+一个更丰富的骨架

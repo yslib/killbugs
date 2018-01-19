@@ -1,0 +1,3 @@
+BirthPlace.js Version 1.0.0：2018/01/18
+
+新增类BirthPlace，继承自EnvironmentItem，位于场景的隐藏层，表示角色的出生点。
