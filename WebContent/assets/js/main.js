@@ -133,8 +133,8 @@ Array.prototype.remove = function(from, to)
 
 /***
 * Geometry.js
-* Version 1.2.6
-* Last Modified 2018/01/18
+* Version 1.2.8
+* Last Modified 2018/01/21
 ***/
 
 function normalizeDegree(degree)
@@ -208,14 +208,14 @@ Point.prototype.deepCopy = function(point)
 	}
 }
 
-Point.prototype.add = function(point)
+Point.prototype.add = function(vec)
 {
-	return new Point(this.x + point.x, this.y + point.y);
+	return new Point(this.x + vec.x, this.y + vec.y);
 }
 
-Point.prototype.sub = function(point)
+Point.prototype.sub = function(vec)
 {
-	return new Point(this.x - point.x, this.y - point.y);
+	return new Point(this.x - vec.x, this.y - vec.y);
 }
 
 Point.prototype.times = function(k)
@@ -223,9 +223,9 @@ Point.prototype.times = function(k)
 	return new Point(k * this.x, k * this.y);
 }
 
-Point.prototype.dot = function(point)
+Point.prototype.dot = function(vec)
 {
-	return this.x * point.x + this.y * point.y;
+	return this.x * vec.x + this.y * vec.y;
 }
 
 Point.prototype.getLength = function()
@@ -243,6 +243,16 @@ Point.prototype.normalize = function()
 	}
 }
 
+Point.prototype.customNormalize = function(disiredLength)
+{
+	var length = this.getLength();
+	if (length > 0)
+	{
+		this.x = this.x / length * disiredLength;
+		this.y = this.y / length * disiredLength;
+	}
+}
+
 Point.prototype.distanceWith = function(point)
 {
 	var offsetX = point.x - this.x;
@@ -255,9 +265,14 @@ Point.prototype.manhattanDistanceWith = function(point)
 	return Math.abs(point.x - this.x) + Math.abs(point.y - this.y);
 }
 
-Point.prototype.angleWith = function(point)
+Point.prototype.angleWith = function(vec)
 {
-	return Math.acos(this.dot(point) / this.getLength() / point.getLength());
+	return Math.atan2(vec.y - this.y, vec.x - this.x);
+}
+
+Point.prototype.angle = function()
+{
+	return Math.atan2(this.y, this.x);
 }
 
 Point.prototype.transfer = function(xShift, yShift, xStretch, yStretch)
@@ -331,8 +346,8 @@ Rect.prototype.contains = function(shape)
 {
 	if (shape instanceof Point)
 	{
-		var offsetX = point.x - this.left;
-		var offsetY = point.y - this.top;
+		var offsetX = shape.x - this.left;
+		var offsetY = shape.y - this.top;
 		return (offsetX >= 0 && offsetX <= this.width
 			&& offsetY >= 0 && offsetY <= this.height);
 	}
@@ -516,7 +531,6 @@ Direction.SOUTHWEST = 0xC;
 Direction.setDirection = function(direction)
 {
 	this.direction = direction;
-	this.offset = Direction.getOffset(direction);
 }
 
 Direction.prototype.deepCopy = function(direction)
@@ -527,7 +541,8 @@ Direction.prototype.deepCopy = function(direction)
 	}
 }
 
-Direction.getOffset = function(direction)
+// Notice: Use screen coordinates!
+Direction.getOffset = function(direction, normalize)
 {
 	var offset = new Point(0, 0);
 	if (typeof direction === "number")
@@ -548,8 +563,77 @@ Direction.getOffset = function(direction)
 		{
 			offset.x -= 1;
 		}
+		if (normalize)
+		{
+			offset.normalize();
+		}
 	}
 	return offset;
+}
+
+// Notice: Use screen coordinates!
+Direction.fromOffset = function(offset)
+{
+	var direction = Direction.NONE;
+	if (offset instanceof Point)
+	{
+		var angle = offset.angle();
+		if (angle > Math.PI / 8)			// (1/8*PI, PI]
+		{
+			if (angle > Math.PI * (5 / 8))		// (5/8*PI, PI]
+			{
+				if (angle > Math.PI * (7 / 8))		// (7/8*PI, PI]
+				{
+					direction = Direction.WEST;
+				}
+				else								// (5/8*PI, 7/8*PI]
+				{
+					direction = Direction.SOUTHWEST;
+				}
+			}
+			else								// (1/8*PI, 5/8*PI]
+			{
+				if (angle > Math.PI * (3 / 8))		// (3/8*PI, 5/8*PI]
+				{
+					direction = Direction.SOUTH;
+				}
+				else								// (1/8*PI, 3/8*PI]
+				{
+					direction = Direction.SOUTHEAST;
+				}
+			}
+		}
+		else								// [-PI, 1/8*PI]
+		{
+			if (angle > Math.PI * (-3 / 8))		// (-3/8*PI, 1/8*PI]
+			{
+				if (angle > Math.PI * (-1 / 8))		// (-1/8*PI, 1/8*PI]
+				{
+					direction = Direction.EAST;
+				}
+				else								// (-3/8*PI, -1/8*PI]
+				{
+					direction = Direction.NORTHEAST;
+				}
+			}
+			else								// [-PI, -3/8*PI]
+			{
+				if (angle > Math.PI * (-5 / 8))		// (-5/8*PI, -3/8*PI]
+				{
+					direction = Direction.NORTH;
+				}
+				else if (angle > Math.PI * (-7 / 8))// (-7/8*PI, -5/8*PI]
+				{
+					direction = Direction.NORTHWEST;
+				}
+				else								// [-PI, -7/8*PI]
+				{
+					direction = Direction.WEST;
+				}
+			}
+		}
+	}
+	return direction;
 }
 
 Direction.prototype.transfer = function(xShift, yShift, xStretch, yStretch)
@@ -585,16 +669,22 @@ Color.makeColor = function()
 
 Color.prototype.addColor = function(color)
 {
-	this.r += color.r;
-	this.g += color.g;
-	this.b += color.b;
+	if (color instanceof Color)
+	{
+		this.r += color.r;
+		this.g += color.g;
+		this.b += color.b;
+	}
 }
 
 Color.prototype.mixColor = function(color)
 {
-	this.r *= color.r;
-	this.g *= color.g;
-	this.b *= color.b;
+	if (color instanceof Color)
+	{
+		this.r *= color.r;
+		this.g *= color.g;
+		this.b *= color.b;
+	}
 }
 
 // end of Geometry.js
@@ -706,23 +796,140 @@ Configuration.prototype.getNodesByXPath = function(xpath)
 
 
 /***
+* ImageHolder.js
+* Version 1.1.0
+* Last Modified 2018/10/20
+***/
+
+function ImageHolder()
+{
+	this.imageSet = {};
+	this.isLoad = {};
+	
+	this.latestImage = "";
+}
+
+ImageHolder.prototype.loadImages = function(filenames)
+{
+	for (file in filenames)
+	{
+		this.addImage(file);
+	}
+}
+
+ImageHolder.prototype.hasImage = function(filename)
+{
+	return filename && (filename in this.imageSet);
+}
+
+ImageHolder.prototype.isImageLoad = function(filename)
+{
+	if (filename && (filename in this.isLoad))
+	{
+		return this.isLoad[filename];
+	}
+	else
+	{
+		return false;
+	}
+}
+
+ImageHolder.prototype.areImagesAllLoad = function()
+{
+	var allLoad = true;
+	for (filename in this.isLoad)
+	{
+		allLoad = allLoad && this.isLoad[filename];
+	}
+	return allLoad;
+}
+
+ImageHolder.prototype.isLatestImage = function(filename)
+{
+	return filename
+		&& filename == this.latestImage
+		&& filename in this.imageSet
+		&& this.imageSet[filename].src == filename;
+}
+
+ImageHolder.prototype.getImage = function(filename, setLatest)
+{
+	if (filename in this.imageSet)
+	{
+		if (setLastImage)
+		{
+			this.latestImage = filename;
+		}
+		return this.imageSet[filename];
+	}
+	return null;
+}
+
+ImageHolder.prototype.addImage = function(filename)
+{
+	if (filename)
+	{
+		var instance = this;
+		var file = filename;
+		this.imageSet[filename] = new Image();
+		this.imageSet[filename].onload = function()
+		{
+			instance.isLoad[file] = true;
+			instance.imageSet[file].onload = null;
+		}
+		this.imageSet[filename].src = filename;
+		return this.imageSet[filename];
+	}
+	return null;
+}
+
+ImageHolder.prototype.dropImage = function(filename)
+{
+	if (filename)
+	{
+		if (filename in this.imageSet)
+		{
+			this.imageSet[filename] = undefined;
+		}
+		if (filename in this.isLoad)
+		{
+			this.isLoad[filename] = undefined;
+		}
+	}
+}
+
+ImageHolder.prototype.clearHolder = function()
+{
+	this.imageSet = {};
+	this.isLoad = {};
+	
+	this.latestImage = "";
+}
+
+// end of ImageHolder.js
+
+
+/***
 * GameMap.js
-* Version 1.3.2
-* Last Modified 2018/01/18
+* Version 1.4.2
+* Last Modified 2018/01/22
 */
 
 function GameMap(config)
 {
 	this.config = config;
 	
-	this.bounding = Rect.makeRect();
-	this.view = Rect.makeRect();
-	this.birthPlace = Circle.makeCircle();
+	this.gameViewer = null;
+	
+	this.bounding = null;
+	this.view = null;
+	this.birthPlace = null;
 	
 	this.id = "";
 	this.name = "";
 	
-	this.texture = null;
+	this.images = null;
+	this.sceneLight = null;
 	
 	this.objects = null;
 	
@@ -736,7 +943,27 @@ GameMap.GROUND = 2;
 GameMap.MIDDLE = 3;
 GameMap.FLOWING = 4;
 GameMap.UPPER = 5;
-GameMap.LAYERS_COUNT = 6;
+GameMap.BEYOND = 6;
+GameMap.LAYERS_COUNT = 7;
+
+GameMap.prototype.resetMap = function()
+{
+	this.bounding = Rect.makeRect();
+	this.view = Rect.makeRect();
+	this.subArea = Rect.makeRect();
+	this.birthPlace = Circle.makeCircle();
+	
+	this.id = "";
+	this.name = "";
+	
+	this.images = new ImageHolder();
+	this.sceneLight = Color.makeColor();
+	
+	this.textureRepeats = new Point(1, 1);
+	this.repeatLengths = Point.makePoint();
+	
+	this.clearAllObjects();
+}
 
 GameMap.prototype.getBoundingBox = function()
 {
@@ -780,18 +1007,47 @@ GameMap.prototype.getBirthPlaceObject = function()
 	return null;
 }
 
+GameMap.prototype.getHitObjects = function(object)
+{
+	var hitObjects = [];
+	var otherObject = null;
+	if (GameMap.isValidMapObject(object))
+	{
+		if (! this.bounding.contains(object.getBoundingBox()))
+		{
+			hitObjects.push(this);
+		}
+		for (let layer = GameMap.HIDDEN + 1;
+			layer < GameMap.LAYERS_COUNT;
+			layer++)
+		{
+			for (let j = 0; j < this.objects[layer].length; j++)
+			{
+				otherObject = this.objects[layer][j];
+				if (otherObject && otherObject.testHit(object))
+				{
+					hitObjects.push(otherObject);
+				}
+			}
+		}
+	}
+	return hitObjects;
+}
+
 GameMap.prototype.testHit = function(object)
 {
 	if (GameMap.isValidMapObject(object))
 	{
-		var box = object.getBoundingBox();
-		
-		return !this.bounding.contains(box);
+		if (object.bounding instanceof Rect)
+		{
+			return ! this.bounding.contains(object.bounding);
+		}
+		else if (object.bounding instanceof Circle)
+		{
+			return ! this.bounding.contains(object.bounding.innerBounding());
+		}
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 GameMap.prototype.onHit = function(object) {}
@@ -801,40 +1057,31 @@ GameMap.prototype.setBackground = function(filename)
 	var mapObject = this.getMapObject();
 	if (mapObject)
 	{
-		mapObject.loadResources(filename);
-		this.texture = mapObject.texture;
+		this.images.addImage(filename);
+		mapObject.textureFile = filename;
 	}
-}
-
-GameMap.prototype.areResourcesReady = function()
-{
-	var areReady = true;
-	for (let layer = GameMap.MAP; layer < GameMap.LAYERS_COUNT; layer++)
-	{
-		for (let j = 0; j < this.objects[layer].length; j++)
-		{
-			if (this.objects[layer][j])
-			{
-				areReady = areReady && this.objects[layer][j].areResourcesReady();
-			}
-		}
-	}
-	return areReady;
 }
 
 GameMap.prototype.renderBackground = function(webgl)
 {
-	webgl.drawPrimitive(this.bounding, this.view, this.texture);
+	var mapObject = this.getMapObject();
+	if (mapObject)
+	{
+		mapObject.onRender(webgl);
+	}
 }
 
 GameMap.prototype.onRender = function(webgl)
 {
 	var object = null;
 	this.renderBackground(webgl);
-	
 	// Ignore hidden objects.
 	for (let i = GameMap.HIDDEN + 1; i < GameMap.LAYERS_COUNT; i++)
 	{
+		if (i == GameMap.HIDDEN)
+		{
+			continue;
+		}
 		for (let j = 0; j < this.objects[i].length; j++)
 		{
 			object = this.objects[i][j];
@@ -867,7 +1114,17 @@ GameMap.makeObjectsXPath = function(mapID, layer)
 		+ "']/objects/group[@layer='" + layer + "']";
 }
 
-GameMap.prototype.load = function(mapID)
+GameMap.makeResourcesXPath = function(mapID, resourceTag)
+{
+	return "/config/maps/map[@id='" + mapID + "']/resources/" + resourceTag;
+}
+
+GameMap.makeSceneParamsXPath = function(mapID, paramsTag)
+{
+	return "/config/maps/map[@id='" + mapID + "']/sceneParams/" + paramsTag;
+}
+
+GameMap.prototype.load = function(mapID, refreshLoad)
 {
 	var mapNode = null;
 	
@@ -875,13 +1132,21 @@ GameMap.prototype.load = function(mapID)
 	var objectClass = "";
 	var objectLayer = GameMap.UNKNOWN;
 	var objectType = "";
+	
+	var imageNodes = null;
+	var imageSource = "";
 	var imageFile = "";
 	
-	var layerNames = ["map", "hidden", "ground", "middle", "flowing", "upper"];
+	var sceneLightNode = null;
+	var linkedID = "";
+	
+	var layerNames = ["map", "hidden", "ground",
+						"middle", "flowing", "upper", "beyond"];
 	var xPaths = [];
 	
 	var allGroups = [];
-	var rawObjects= null;
+	var thisGroup = null;
+	var rawObjects = null;
 	
 	var x = 0;
 	var y = 0;
@@ -889,12 +1154,50 @@ GameMap.prototype.load = function(mapID)
 	var height = 0;
 	var radius = 0;
 	
-	this.resetMap();
-	this.id = mapID;
-	mapNode = this.config.getNodeByXPath(GameMap.makeMapXPath(mapID));
-	if (mapNode != null)
+	if (refreshLoad)
 	{
-		this.name = mapNode.getAttribute("name").valueOf();
+		this.clearLayer(GameMap.FLOWING);
+	}
+	else
+	{
+		this.resetMap();
+	}
+	
+	this.id = mapID;
+	
+	try
+	{
+		mapNode = this.config.getNodeByXPath(
+			GameMap.makeMapXPath(mapID));
+		if (mapNode != null)
+		{
+			this.name = mapNode.getAttribute("name").valueOf();
+		}
+		
+		imageNodes = this.config.getNodesByXPath(
+			GameMap.makeResourcesXPath(mapID, "img"));
+		for (node in imageNodes)
+		{
+			imageSource = node.getAttribute("src").valueOf();
+			if (imageSource)
+			{
+				this.images.addImage(imageSource);
+			}
+		}
+		sceneLightNode = this.config.getNodeByXPath(
+			GameMap.makeSceneParamsXPath(mapID, "light"));
+		this.sceneLight.r = parseFloat(
+			sceneLightNode.getAttribute("r").valueOf(), 10);
+		this.sceneLight.g = parseFloat(
+			sceneLightNode.getAttribute("g").valueOf(), 10);
+		this.sceneLight.b = parseFloat(
+			sceneLightNode.getAttribute("b").valueOf(), 10);
+		this.sceneLight.a = parseFloat(
+			sceneLightNode.getAttribute("a").valueOf(), 10);
+	}
+	catch (e)
+	{
+		console.log(e.message);
 	}
 	
 	for (let i = 0; i < layerNames.length; i++)
@@ -905,25 +1208,43 @@ GameMap.prototype.load = function(mapID)
 	
 	for (let layer = GameMap.MAP; layer < GameMap.LAYERS_COUNT; layer++)
 	{
+		// Only FLOWING layer is refreshable.
+		if (refreshLoad && layer != GameMap.FLOWING)
+		{
+			continue;
+		}
+		
 		for (let group = 0; group < allGroups[layer].length; group++)
 		{
+			thisGroup = allGroups[layer][group];
+			objectLayer = GameMap.UNKNOWN;
+			objectClass = "";
+			imageFile = "";
+			linkedID = null;
 			try
 			{
-				objectLayer = eval("GameMap."
-					+ allGroups[layer][group].getAttribute("layer")
-					.toUpperCase().valueOf());
-				objectClass = allGroups[layer][group].getAttribute("class").valueOf();
-				imageFile = allGroups[layer][group].getAttribute("img").valueOf();
+				objectLayer = eval("GameMap." + thisGroup.getAttribute("layer")
+						.toUpperCase().valueOf());
+				objectClass = thisGroup.getAttribute("class").valueOf();
+				imageFile = thisGroup.getAttribute("img").valueOf();
 			}
 			catch (e)
 			{
 				console.log(e.message);
 				continue;
 			}
+			try
+			{
+				linkedID = thisGroup.getAttribute("linkedID").valueOf();
+			}
+			catch (e)
+			{
+				linkedID = null;
+			}
 			
 			if (GameMap.isValidLayer(objectLayer))
 			{
-				rawObjects = allGroups[layer][group].children;
+				rawObjects = thisGroup.children;
 				for (let k = 0; k < rawObjects.length; k++)
 				{
 					try
@@ -966,7 +1287,20 @@ GameMap.prototype.load = function(mapID)
 						
 						if (imageFile)
 						{
-							gameObject.loadResources(imageFile);
+							if (layer == GameMap.HIDDEN)
+							{
+								gameObject.textureFile = imageFile;
+							}
+							else
+							{
+								gameObject.loadResources(imageFile);
+							}
+						}
+						gameObject.sceneLight = Color.makeColor();
+						gameObject.sceneLight.deepCopy(this.sceneLight);
+						if (linkedID)
+						{
+							gameObject.linkedID = linkedID;
 						}
 						
 						this.addObject(gameObject, objectLayer);
@@ -980,7 +1314,6 @@ GameMap.prototype.load = function(mapID)
 			}			
 		}
 	}
-	
 	try
 	{
 		var mapObject = this.getMapObject();
@@ -988,8 +1321,6 @@ GameMap.prototype.load = function(mapID)
 		var birthPlaceObject = this.getBirthPlaceObject();
 		
 		this.bounding = mapObject.bounding;
-		this.texture = mapObject.texture;
-		
 		this.view = viewObject.bounding;
 		this.birthPlace = birthPlaceObject.bounding;
 	}
@@ -997,6 +1328,24 @@ GameMap.prototype.load = function(mapID)
 	{
 		console.log(e.message);
 	}
+}
+
+GameMap.prototype.areResourcesReady = function()
+{
+	for (let layer = GameMap.MAP; layer < GameMap.LAYERS_COUNT; layer++)
+	{
+		for (let j = 0; j < this.objects[layer].length; j++)
+		{
+			if (this.objects[layer][j])
+			{
+				if (! this.objects[layer][j].areResourcesReady())
+				{
+					return false;
+				}
+			}
+		}
+	}
+	return true;
 }
 
 GameMap.prototype.setView = function(x, y, width, height)
@@ -1080,11 +1429,26 @@ GameMap.prototype.removeObject = function(object, layer)
 	}
 }
 
+GameMap.prototype.hasObject = function(object, layer)
+{
+	if (GameMap.isValidLayer(layer))
+	{
+		for (let i = 0; i < this.objects[layer].length; i++)
+		{
+			if (this.objects[layer][i] == object)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 GameMap.prototype.removeObjectByIndex = function(layer, index)
 {
 	if (GameMap.isValidLayer(layer))
 	{
-		this.objects.remove(index);
+		this.objects[layer].remove(index);
 	}
 }
 
@@ -1105,12 +1469,8 @@ GameMap.prototype.processObjectHits = function()
 		{
 			// Since still objects never hit others, let the moving ones hit them.
 			// Additional, ignore hidden and ground objects.
-			for (let layer = GameMap.MAP; layer < GameMap.LAYERS_COUNT; layer++)
+			for (let layer = GameMap.GROUND + 1; layer < GameMap.LAYERS_COUNT; layer++)
 			{
-				if (layer == GameMap.HIDDEN || layer == GameMap.GROUND)
-				{
-					continue;
-				}
 				passiveObjects = this.objects[layer];
 				passiveCount = passiveObjects.length;
 				
@@ -1120,14 +1480,13 @@ GameMap.prototype.processObjectHits = function()
 					{
 						continue;
 					}
-					
 					for (let k = 0; k < flowingCount; k++)
 					{
 						if (flowingObjects[k] === undefined)
 						{
 							continue;
 						}
-						
+						// Test with each other.
 						if (flowingObjects[k].testHit(passiveObjects[j]))
 						{
 							removeFlag1 = flowingObjects[k].onHit(passiveObjects[j]);
@@ -1140,11 +1499,20 @@ GameMap.prototype.processObjectHits = function()
 								flowingObjects[k].mapReference = null;
 								flowingObjects[k] = undefined;
 							}
-							
 							if (removeFlag2)
 							{
 								passiveObjects[j].mapReference = null;
 								passiveObjects[j] = undefined;
+							}
+						}
+						// Test with map.
+						if (this.testHit(flowingObjects[k]))
+						{
+							removeFlag1 = flowingObjects[k].onHit(this);
+							if (removeFlag1)
+							{
+								flowingObjects[k].mapReference = null;
+								flowingObjects[k] = undefined;
 							}
 						}
 					}
@@ -1198,6 +1566,14 @@ GameMap.prototype.clearDeletedObjects = function()
 	}
 }
 
+GameMap.prototype.clearLayer = function(layer)
+{
+	if (layer < this.objects.length)
+	{
+		this.objects[layer] = [];
+	}
+}
+
 GameMap.prototype.clearAllObjects = function()
 {
 	this.objects = [];
@@ -1207,27 +1583,24 @@ GameMap.prototype.clearAllObjects = function()
 	}
 }
 
-GameMap.prototype.resetMap = function()
-{
-	this.bounding = null;
-	this.id = "";
-	this.name = "";
-	this.clearAllObjects();
-}
-
 // end of GameMap.js
 
 
 /***
 * GameObject.js
-* Version 1.2.4
-* Last Modified 2018/01/17
+* Version 1.4.1
+* Last Modified 2018/01/21
 ***/
 
 function GameObject(config)
 {
 	this.config = config;
+	
 	this.texture = new Image();
+	this.textureFile = "";
+	this.isTextureLoad = true;
+	this.sceneLight = Color.makeColor();
+	
 	this.bounding = null;
 	this.mapReference = null;
 }
@@ -1249,8 +1622,6 @@ GameObject.prototype.onHit = function(object) {}
 
 GameObject.prototype.loadResources = function(filename) {}
 
-GameObject.prototype.onResourcesLoad = function() {}
-
 GameObject.prototype.areResourcesReady = function()
 {
 	return true;
@@ -1265,15 +1636,17 @@ GameObject.prototype.updateState = function() {}
 
 /***
 * EnvironmentItem.js
-* Version 1.0.0
-* Last Modified 2018/01/17
+* Version 1.1.0
+* Last Modified 2018/01/20
 ***/
 
 function EnvironmentItem(config)
 {
 	GameObject.call(this, config);
 	
-	this.textureLoaded = false;
+	this.texture = new Image();
+	this.textureFile = "";
+	this.isTextureLoad = true;
 }
 
 EnvironmentItem.prototype = new GameObject();
@@ -1281,27 +1654,20 @@ EnvironmentItem.prototype.constructor = EnvironmentItem;
 
 EnvironmentItem.prototype.loadResources = function(filename)
 {
-	if (!this.texture)
+	var instance = this;
+	this.isTextureLoad = false;
+	this.texture.onload = function()
 	{
-		this.texture = new Image();
-	}
-	this.textureLoaded = false;
-	this.texture.onload = this.onResourcesLoad;
+		instance.isTextureLoad = true;
+		instance.texture.onload = null;
+	};
 	this.texture.src = filename;
-}
-
-EnvironmentItem.prototype.onResourcesLoad = function()
-{
-	if (this.texture)
-	{
-		this.textureLoaded = true;
-		this.texture.onload = null;
-	}
+	this.textureFile = filename;
 }
 
 EnvironmentItem.prototype.areResourcesReady = function()
 {
-	return this.textureLoaded;
+	return this.isTextureLoad;
 }
 
 EnvironmentItem.prototype.updateState = function() {}
@@ -1311,8 +1677,8 @@ EnvironmentItem.prototype.updateState = function() {}
 
 /***
 * Block.js
-* Version 1.0.0
-* Last Modified 2018/01/17
+* Version 1.1.0
+* Last Modified 2018/01/20
 ***/
 
 function Block(config)
@@ -1320,10 +1686,6 @@ function Block(config)
 	EnvironmentItem.call(this, config);
 	
 	this.bounding = Rect.makeRect();
-	
-	this.texture = new Image();
-	this.textureFile = "";
-	this.textureLoaded = false;
 }
 
 Block.prototype = new EnvironmentItem();
@@ -1338,10 +1700,13 @@ Block.prototype.testHit = function(object)
 {
 	if (object instanceof GameObject)
 	{
-		var box = object.getBoundingBox();
-		if (box)
+		if (object.bounding instanceof Rect)
 		{
-			return this.bounding.intersects(box);
+			return this.bounding.intersects(object.bounding);
+		}
+		else if (object.bounding instanceof Circle)
+		{
+			return this.bounding.intersects(object.bounding.innerBounding());
 		}
 	}
 	return false;
@@ -1354,9 +1719,13 @@ Block.prototype.onHit = function(object)
 
 Block.prototype.onRender = function(webgl)
 {
-	if (this.mapReference)
+	var map = this.mapReference;
+	if (map)
 	{
-		webgl.drawPrimitive(this.bounding, this.mapReference.view, this.texture);
+		webgl.drawPrimitive(this.bounding,
+			map.view,
+			this.texture,
+			this.sceneLight);
 	}
 }
 
@@ -1365,8 +1734,8 @@ Block.prototype.onRender = function(webgl)
 
 /***
 * Round.js
-* Version 1.0.0
-* Last Modified 2018/01/17
+* Version 1.1.0
+* Last Modified 2018/01/20
 ***/
 
 function Round(config)
@@ -1418,11 +1787,13 @@ Round.prototype.onHit = function(object)
 
 Round.prototype.onRender = function(webgl)
 {
-	if (this.mapReference)
+	var map = this.mapReference;
+	if (map)
 	{
 		webgl.drawPrimitive(this.bounding.outerBounding(),
-			this.mapReference.view,
-			this.texture);
+			map.view,
+			this.texture,
+			this.sceneLight);
 	}
 }
 
@@ -1431,8 +1802,8 @@ Round.prototype.onRender = function(webgl)
 
 /***
 * Decoration.js
-* Version 1.0.0
-* Last Modified 2018/01/18
+* Version 1.0.1
+* Last Modified 2018/01/19
 ***/
 
 function Decoration(config)
@@ -1440,10 +1811,6 @@ function Decoration(config)
 	EnvironmentItem.call(this, config);
 	
 	this.bounding = Rect.makeRect();
-	
-	this.texture = new Image();
-	this.textureFile = "";
-	this.textureLoaded = false;
 }
 
 Decoration.prototype = new EnvironmentItem();
@@ -1466,9 +1833,13 @@ Decoration.prototype.onHit = function(object)
 
 Decoration.prototype.onRender = function(webgl)
 {
-	if (this.mapReference)
+	var map = this.mapReference;
+	if (map)
 	{
-		webgl.drawPrimitive(this.bounding, this.mapReference.view, this.texture);
+		webgl.drawPrimitive(this.bounding,
+			map.view,
+			this.texture,
+			this.sceneLight);
 	}
 }
 
@@ -1486,8 +1857,6 @@ function BirthPlace(config)
 	EnvironmentItem.call(this, config);
 	
 	this.bounding = Circle.makeCircle();
-	
-	this.texture = null;
 }
 
 BirthPlace.prototype = new EnvironmentItem();
@@ -1525,8 +1894,8 @@ BirthPlace.prototype.onRender = function(webgl) {}
 
 /***
 * AnimationObject.js
-* Version 1.2.0
-* Last Modified 2018/01/18
+* Version 1.2.1
+* Last Modified 2018/01/19
 */
 
 function AnimationObject(config)
@@ -1589,7 +1958,7 @@ function TouchPoint(config)
 	
 	this.texture = new Image();
 	this.textureFile = "";
-	this.textureLoaded = false;
+	this.isTextureLoad = true;
 }
 
 TouchPoint.prototype = new AnimationObject();
@@ -1612,27 +1981,20 @@ TouchPoint.prototype.getRadius = function()
 
 TouchPoint.prototype.loadResources = function(filename)
 {
-	if (!this.texture)
+	var instance = this;
+	this.isTextureLoad = false;
+	this.texture.onload = function()
 	{
-		this.texture = new Image();
-	}
-	this.textureLoaded = false;
-	this.texture.onload = this.onResourcesLoad;
+		instance.isTextureLoad = true;
+		instance.texture.onload = null;
+	};
 	this.texture.src = filename;
-}
-
-TouchPoint.prototype.onResourcesLoad = function()
-{
-	if (this.texture)
-	{
-		this.textureLoaded = true;
-		this.texture.onload = null;
-	}
+	this.textureFile = filename;
 }
 
 TouchPoint.prototype.areResourcesReady = function()
 {
-	return this.textureLoaded;
+	return this.isTextureLoad;
 }
 
 TouchPoint.prototype.onRender = function() {}
@@ -1644,20 +2006,22 @@ TouchPoint.prototype.updateState = function() {}
 
 /***
 * Teleport.js
-* Version 1.0.0
-* Last Modified 2018/01/18
+* Version 1.0.1
+* Last Modified 2018/01/19
 ***/
 
 function Teleport(config)
 {
 	TouchPoint.call(this, config);
 	
-	this.colorMean = new Color(0.35, 0.35, 0.35, 1.0);
-	this.additionalColor = new Color(0.0, 0.0, 0.0, 1.0);
+	this.colorMean = new Color(0.35, 0.35, 0.35, 0.0);
+	this.additionalColor = new Color(0.0, 0.0, 0.0, 0.0);
 	this.sineStep = 0;
 	this.sineStepMax = 120;
 	this.sinePeak = 0.35;
 	this.sineStepLength = Math.PI * 2 / this.sineStepMax;
+	
+	this.linkedID = "";
 }
 
 Teleport.prototype = new TouchPoint();
@@ -1667,7 +2031,7 @@ Teleport.prototype.testHit = function(object)
 {
 	if (object instanceof Player)
 	{
-		return this.bounding.surfaceDistanceWith(player.bounding) < -3;
+		return this.bounding.centerDistanceWith(player.bounding) < 6;
 	}
 	return false;
 }
@@ -1683,11 +2047,12 @@ Teleport.prototype.onHit = function(object)
 
 Teleport.prototype.onRender = function(webgl)
 {
-	if (this.mapReference)
+	var map = this.mapReference;
+	if (map)
 	{
 		webgl.drawPrimitive(this.bounding.outerBounding(),
-			this.mapReference.view,
-			this.texture, 
+			map.view,
+			this.texture,
 			this.additionalColor);
 	}
 }
@@ -1698,28 +2063,65 @@ Teleport.prototype.updateState = function()
 	this.additionalColor.r = this.colorMean.r + addition;
 	this.additionalColor.g = this.colorMean.g + addition;
 	this.additionalColor.b = this.colorMean.b + addition;
+	this.additionalColor.addColor(this.sceneLight);
 	this.sineStep = (this.sineStep + 1) % this.sineStepMax;
 }
+
+Teleport.prototype.makeBirthPosition = function()
+{
+	var center = this.bounding.center;
+	var radius = this.bounding.radius;
+	var position = Circle.makeCircle();
+	position.radius = radius;
+	
+	position.center.x = center.x + 0;
+	position.center.y = center.y - radius * 2;
+	if (this.mapReference.bounding.contains(position.outerBounding()))
+	{
+		return position;
+	}
+	position.center.x = center.x + radius * 2;
+	position.center.y = center.y - 0;
+	if (this.mapReference.bounding.contains(position.outerBounding()))
+	{
+		return position;
+	}
+	position.center.x = center.x + 0;
+	position.center.y = center.y + radius * 2;
+	if (this.mapReference.bounding.contains(position.outerBounding()))
+	{
+		return position;
+	}
+	position.center.x = center.x - radius * 2;
+	position.center.y = center.y - 0;
+	if (this.mapReference.bounding.contains(position.outerBounding()))
+	{
+		return position;
+	}
+	
+	return position;
+}
+
 
 // end of Teleport.js
 
 
 /***
 * BenefitPoint.js
-* Version 1.0.0
-* Last Modified 2018/01/18
+* Version 1.0.1
+* Last Modified 2018/01/19
 ***/
 
 function BenefitPoint(config)
 {
 	TouchPoint.call(this, config);
 	
-	this.colorMean = new Color(0.35, 0.35, 0.35, 1.0);
-	this.colorDark = new Color(-0.35, -0.35, -0.35, 1.0);
-	this.additionalColor = new Color(0.0, 0.0, 0.0, 1.0);
+	this.colorMean = new Color(0.2, 0.2, 0.2, 0.0);
+	this.colorDark = new Color(-0.35, -0.35, -0.35, 0.0);
+	this.additionalColor = new Color(0.0, 0.0, 0.0, 0.0);
 	this.sineStep = 0;
-	this.sineStepMax = 120;
-	this.sinePeak = 0.35;
+	this.sineStepMax = 140;
+	this.sinePeak = 0.25;
 	this.sineStepLength = Math.PI * 2 / this.sineStepMax;
 	this.touched = false;
 }
@@ -1731,8 +2133,9 @@ BenefitPoint.prototype.testHit = function(object)
 {
 	if (object instanceof Player)
 	{
-		return this.bounding.intersects(object.bounding);
+		return this.bounding.centerDistanceWith(player.bounding) < 6;
 	}
+	return false;
 }
 
 BenefitPoint.prototype.onHit = function(object)
@@ -1747,12 +2150,13 @@ BenefitPoint.prototype.onHit = function(object)
 
 BenefitPoint.prototype.onRender = function(webgl)
 {
-	if (this.mapReference)
+	var map = this.mapReference;
+	if (map)
 	{
 		webgl.drawPrimitive(this.bounding.outerBounding(),
-			this.mapReference.view,
-			this.texture,
-			this.additionalColor);
+		map.view,
+		this.texture,
+		this.additionalColor);
 	}
 }
 
@@ -1764,11 +2168,13 @@ BenefitPoint.prototype.updateState = function()
 		this.additionalColor.r = this.colorMean.r + addition;
 		this.additionalColor.g = this.colorMean.g + addition;
 		this.additionalColor.b = this.colorMean.b + addition;
+		this.additionalColor.addColor(this.sceneLight);
 		this.sineStep = (this.sineStep + 1) % this.sineStepMax;
 	}
 	else
 	{
 		this.additionalColor.deepCopy(this.colorDark);
+		this.additionalColor.addColor(this.sceneLight);
 	}
 }
 
@@ -1777,22 +2183,21 @@ BenefitPoint.prototype.updateState = function()
 
 /***
 * RecoveryPoint.js
-* Version 1.0.0
-* Last Modified 2018/01/18
+* Version 1.0.1
+* Last Modified 2018/01/19
 ***/
 
 function RecoveryPoint(config)
 {
 	TouchPoint.call(this, config);
 	
-	this.colorMean = new Color(0.35, 0.35, 0.35, 1.0);
-	this.colorDark = new Color(-0.35, -0.35, -0.35, 1.0);
-	this.additionalColor = new Color(0.0, 0.0, 0.0, 1.0);
+	this.colorMean = new Color(0.2, 0.2, 0.2, 0.0);
+	this.colorDark = new Color(-0.35, -0.35, -0.35, 0.0);
+	this.additionalColor = new Color(0.0, 0.0, 0.0, 0.0);
 	this.sineStep = 0;
-	this.sineStepMax = 120;
-	this.sinePeak = 0.35;
+	this.sineStepMax = 140;
+	this.sinePeak = 0.25;
 	this.sineStepLength = Math.PI * 2 / this.sineStepMax;
-	this.touched = false;
 }
 
 RecoveryPoint.prototype = new TouchPoint();
@@ -1802,26 +2207,23 @@ RecoveryPoint.prototype.testHit = function(object)
 {
 	if (object instanceof Player)
 	{
-		return this.bounding.intersects(object.bounding);
+		return this.bounding.centerDistanceWith(player.bounding) < 6;
 	}
+	return false;
 }
 
 RecoveryPoint.prototype.onHit = function(object)
 {
-	if (object instanceof Player)
-	{
-		this.touched = true;
-		this.colorFrame = 0;
-	}
 	return false;
 }
 
 RecoveryPoint.prototype.onRender = function(webgl)
 {
-	if (this.mapReference)
+	var map = this.mapReference;
+	if (map)
 	{
 		webgl.drawPrimitive(this.bounding.outerBounding(),
-			this.mapReference.view,
+			map.view,
 			this.texture,
 			this.additionalColor);
 	}
@@ -1829,18 +2231,12 @@ RecoveryPoint.prototype.onRender = function(webgl)
 
 RecoveryPoint.prototype.updateState = function()
 {
-	if (! this.touched)
-	{
-		var addition = Math.sin(this.sineStep * this.sineStepLength) * this.sinePeak;
-		this.additionalColor.r = this.colorMean.r + addition;
-		this.additionalColor.g = this.colorMean.g + addition;
-		this.additionalColor.b = this.colorMean.b + addition;
-		this.sineStep = (this.sineStep + 1) % this.sineStepMax;
-	}
-	else
-	{
-		this.additionalColor.deepCopy(this.colorDark);
-	}
+	var addition = Math.sin(this.sineStep * this.sineStepLength) * this.sinePeak;
+	this.additionalColor.r = this.colorMean.r + addition;
+	this.additionalColor.g = this.colorMean.g + addition;
+	this.additionalColor.b = this.colorMean.b + addition;
+	this.additionalColor.addColor(this.sceneLight);
+	this.sineStep = (this.sineStep + 1) % this.sineStepMax;
 }
 
 // end of RecoveryPoint.js
@@ -1848,11 +2244,22 @@ RecoveryPoint.prototype.updateState = function()
 
 /***
 * PlotPoint.js
+* Version 1.0.0
+* Last Modified 2018/01/22
 ***/
 
 function PlotPoint(config)
 {
 	TouchPoint.call(this, config);
+	
+	this.colorMean = new Color(0.4, 0.2, 0.2, 0.0);
+	this.additionalColor = new Color(0.0, 0.0, 0.0, 0.0);
+	this.sineStep = 0;
+	this.sineStepMax = 60;
+	this.sinePeak = 0.4;
+	this.sineStepLength = Math.PI * 2 / this.sineStepMax;
+	
+	this.linkedID = "";
 }
 
 PlotPoint.prototype = new TouchPoint();
@@ -1860,12 +2267,38 @@ PlotPoint.prototype.constructor = PlotPoint;
 
 PlotPoint.prototype.testHit = function(object)
 {
-	
+	if (object instanceof Player)
+	{
+		return this.bounding.centerDistanceWith(player.bounding) < 6;
+	}
+	return false;
 }
 
 PlotPoint.prototype.onHit = function(object)
 {
-	
+	return false;
+}
+
+PlotPoint.prototype.onRender = function(webgl)
+{
+	var map = this.mapReference;
+	if (map)
+	{
+		webgl.drawPrimitive(this.bounding.outerBounding(),
+			map.view,
+			this.texture,
+			this.additionalColor);
+	}
+}
+
+PlotPoint.prototype.updateState = function()
+{
+	var addition = Math.sin(this.sineStep * this.sineStepLength) * this.sinePeak;
+	this.additionalColor.r = this.colorMean.r + addition;
+	this.additionalColor.g = this.colorMean.g + addition;
+	this.additionalColor.b = this.colorMean.b + addition;
+	this.additionalColor.addColor(this.sceneLight);
+	this.sineStep = (this.sineStep + 1) % this.sineStepMax;
 }
 
 // end of PlotPoint.js
@@ -2297,22 +2730,17 @@ Character.prototype.constructor = Character;
 
 Character.prototype.getBoundingBox = function()
 {
-	var halfEdge = bounding.radius / Math.SQRT2;
-	
-	var left = bounding.center.x - halfEdge;
-	var top = bounding.center.y - halfEdge;
-	
-	return new Rect(left, top, halfEdge * 2, halfEdge * 2);
+	return this.bounding.outerBounding();
 }
 
 Character.prototype.getCenter = function()
 {
-	return bounding.center;
+	return this.bounding.center;
 }
 
 Character.prototype.getRadius = function()
 {
-	return bounding.radius;
+	return this.bounding.radius;
 }
 
 Character.prototype.toNextLevel = function() {}
@@ -2336,78 +2764,262 @@ Character.prototype.makeSpeech = function() {}
 
 /***
 * Player.js
+* Version 1.2.1
+* Last Modified 2018/01/22
 ***/
 
 function Player(config)
 {
 	Character.call(this, config);
 
+	this.gameViewer = null;
+	
+	this.bounding = Circle.makeCircle()
+	
+	this.frames = new Array(13);
+	// Stuff placeholders to convenience index visits.
+	this.fileSuffix = [null,
+						"1.png", "2.png", "3.png", "4.png",
+						null, "6.png", null, "8.png",
+						"9.png", null, null, "12.png", ]
+	this.wholeFilenames = new Array(13);
+	this.frameLoad = new Array(13);
+	this.currentRenderGroup = 0;
+	
 	this.experience = 0;
 	this.maxExperience = 10;
-	this.skills[0] = new Skill_Melee(config);
+	/*this.skills[0] = new Skill_Melee(config);
 	this.skills[1] = new Skill_Ranged(config);
 	this.skills[2] = new Skill_Ultimate(config);
 	this.skills[0].mapReference = this;
 	this.skills[1].mapReference = this;
-	this.skills[2].mapReference = this;
+	this.skills[2].mapReference = this;*/
 	
-	this.lastBounding = this.bounding;
+	this.isMoving = false;
+	
+	this.direction = Direction.NORTH;
+	this.vector = Point.makePoint();
+	this.stepLength = 1;
+	
+	this.blankColor = new Color(0.0, 0.0, 0.0, 0.0);
+	this.hurtColor = new Color(0.2, 0.05, 0.05, 0.0);
+	this.benefitColor = new Color(0.05, 0.05, 0.2, 0.0);
+	this.recoveryColor = new Color(0.05, 0.2, 0.2, 0.0);
+	this.additionalColor = Color.makeColor();
 }
 
 Player.prototype = new Character();
 Player.prototype.constructor = Player;
 
-Player.prototype.onHit = function(object) {
+Player.prototype.loadResources = function(filename)
+{
+	var instance = this;
+	var index = 0;
+	for (i = 0; i < this.fileSuffix.length; i++)
+	{
+		if (this.fileSuffix[i])
+		{
+			index = i;
+			this.frames[i] = new Image();
+			this.frameLoad[i] = false;
+			this.frames[i].onload = function()
+			{
+				instance.frameLoad[index] = true;
+				instance.frames[index].onload = null;
+			};
+			this.frames[i].src = filename + this.fileSuffix[i];
+			this.wholeFilenames[i] = filename + this.fileSuffix[i];
+		}
+	}
+}
+
+Player.prototype.areResourcesReady = function()
+{
+	// for (let i = 0; i < this.frameLoad.length; i++)
+	// {
+	//	 if (this.fileSuffix[i] && ! this.frameLoad[i])
+	//	 {
+	//		 return false;
+	//	 }
+	// }
+	return true;
+}
+
+Player.prototype.testHit = function(object)
+{
+	if (object != this)
+	{
+		if (object instanceof Teleport)
+		{
+			return object.bounding.centerDistanceWith(this.bounding) < 6;
+		}
+		else if (object instanceof BenefitPoint)
+		{
+			return object.bounding.centerDistanceWith(this.bounding) < 6;
+		}
+		else if (object instanceof RecoveryPoint)
+		{
+			return object.bounding.centerDistanceWith(this.bounding) < 6;
+		}
+		else if (object instanceof PlotPoint)
+		{
+			return object.bounding.centerDistanceWith(this.bounding) < 6;
+		}
+		else if (object instanceof EnvironmentItem)
+		{
+			if (object.bounding instanceof Rect)
+			{
+				return object.bounding.intersects(this.bounding.innerBounding());
+			}
+			else if (object.bounding instanceof Circle)
+			{
+				return object.bounding.innerBounding()
+					.intersects(this.bounding.innerBounding());
+			}
+		}
+		else if (object instanceof Character)
+		{
+			return this.bounding.innerBounding()
+				.intersects(object.bounding.innerBounding());
+		}
+		else if (object instanceof Skill)
+		{
+			return this.bounding.innerBounding()
+				.intersects(object.bounding.innerBounding());
+		}
+	}
 	
-	if(object instanceof Skill) {
-	
-		if(object.mapReference instanceof Player) {
-			
+	return false;
+}
+
+Player.prototype.onHit = function(object)
+{
+	if (object instanceof GameMap)
+	{
+		this.stepBackward();
+		this.isMoving = false;
+	}
+	else if (object instanceof EnvironmentItem)
+	{
+		this.stepBackward();
+		this.isMoving = false;
+	}
+	else if (object instanceof Teleport)
+	{
+		if (object.linkedID)
+		{
+			var oldPosition = this.mapReference
+				.getBirthPlaceObject().bounding;
+			var birthPosition = object.makeBirthPosition();
+			oldPosition.deepCopy(birthPosition);
+			this.gameViewer.setCurrentMap(object.linkedID);
+			this.gameViewer.refreshCurrentMap();
+		}
+		this.isMoving = false;
+	}
+	else if (object instanceof BenefitPoint)
+	{
+		if (! object.touched)
+		{
+			this.additionalColor = this.benefitColor;
+			this.gainExperience(100);
+		}
+	}
+	else if (object instanceof RecoveryPoint)
+	{
+		this.additionalColor = this.recoveryColor;
+		this.HP = this.maxHP;
+		this.MP = this.maxMP;
+	}
+	else if (object instanceof PlotPoint)
+	{
+		// Testing code.
+		this.moving = false;
+		if (object.linkedID == "victory")
+		{
+			this.gameViewer.sceneDone = true;
+		}
+		// End of testing code.
+	}
+	else if (object instanceof Character)
+	{
+		this.stepBackward();
+		this.isMoving = false;
+	}
+	else if (object instanceof Skill)
+	{
+		if (object.owner instanceof Player)
+		{
 			//技能消失，伤害不变
 			return false;
 		}
 		//敌军伤害
-		else {
+		else
+		{
 			var damage = object.damage;
-			if(Math.random()<=object.doubleDamageRate) {
-				damage = 2*damage;
+			if (Math.random() <= object.doubleDamageRate)
+			{
+				damage = 2 * damage;
 			}
-			this.HP = this.HP-damage;
-			if(this.HP<=0) {
-				//自己阵亡
-				GameMap.removeObjcet(this, 5);
-				
-				//跳转失败画面
+			if (this.takeDamage(damage))
+			{
 				return true;
 			}
-			else {
+			else
+			{
 				//受伤画面？
+				this.additionalColor = this.hurtColor;
 				return false;
 			}
 		}
 	}
-	//非技能，敌人或墙体
-	else {
-		//恢复原来位置，不再向前移动
-		this.bounding = this.lastBounding;
-		return false;
+	return false;
+}
+
+Player.prototype.onRender = function(webgl)
+{
+	var map = this.mapReference;
+	if (map)
+	{
+		webgl.drawPrimitive(this.bounding.outerBounding(),
+			map.view,
+			this.frames[this.direction],
+			this.additionalColor);
 	}
-	
+}
+
+Player.prototype.updateState = function()
+{
+	this.additionalColor = this.blankColor;
+	if (this.isMoving == true)
+	{
+		this.stepForward();
+	}
 }
 
 //如果经验值达到一定值，则进入下一层，同时更新其相应的技能
 Player.prototype.toNextLevel = function() 
 {
-	
-	if(this.experience>=this.maxExperience) {
+	if (this.experience >= this.maxExperience)
+	{
 		
 		this.experience = this.experience - this.maxExperience;
 		this.HP = this.maxHP;
 		this.MP = this.maxMP;
-		this.speed = this.speed+10;
-		for(var i=0;i<this.skills.length;i++) {		
-			this.skills[i].toNextLevel();
-		}
+		//this.speed = this.speed+10;
+		//for (var i=0;i<this.skills.length;i++)
+		//{		
+		//	this.skills[i].toNextLevel();
+		//}
+	}
+}
+
+Player.prototype.gainHP = function(amount)
+{
+	this.HP += amount;
+	if (this.HP > this.maxHP)
+	{
+		this.HP = this.maxHP;
 	}
 }
 
@@ -2416,12 +3028,31 @@ Player.prototype.takeDamage = function(damage)
 	Character.prototype.takeDamage(damage);
 }
 
+Player.prototype.gainMP = function(amount)
+{
+	this.MP += amount;
+	if (this.MP > this.maxMP)
+	{
+		this.MP = this.maxMP;
+	}
+}
+
+Player.prototype.gainExperience = function(amount)
+{
+	this.experience += amount;
+	if (this.experience > this.maxExperience)
+	{
+		this.experience = this.maxExperience;
+	}
+}
+
 Player.prototype.onDefeated = function()
 {
-	//出现失败画面
+	//自己阵亡
+	//GameMap.removeObjcet(this, 5);
 	
+	//跳转失败画面
 	return;
-
 }
 
 Player.prototype.makeSpeech = function()
@@ -2429,51 +3060,37 @@ Player.prototype.makeSpeech = function()
 	
 }
 
-//
-Player.prototype.turn = function(dir)
+Player.prototype.turn = function(vec)
 {
-	direction = dir;
+	this.vector.deepCopy(vec);
+	this.vector.customNormalize(this.stepLength);
+	this.direction = Direction.fromOffset(this.vector);
+}
+
+Player.prototype.turnTo = function(targetPoint)
+{
+	this.vector = targetPoint.sub(this.bounding.center);
+	this.vector.customNormalize(this.stepLength);
+	this.direction = Direction.fromOffset(this.vector);
 }
 
 Player.prototype.stepForward = function()
 {
-	//接收键盘事件
-	var dir = Direction.NONE;
-	this.turn(dir);
-	var sqrt2_2 = 0.7071067811865475;
-	var dirvector = new Point(0,0);
-	switch (this.direction) {
-		case Direction.NONE: dirvector = new Point(0,0);break;
-	
-		case Direction.NORTH: dirvector = new Point(1,0);break;
-		case Direction.EAST: dirvector = new Point(0,1);break;
-		case Direction.SOUTH: dirvector = new Point(-1,0);break;
-		case Direction.WEST: dirvector = new Point(0,-1);break;
-	
-		case Direction.NORTHEAST: dirvector = new Point(sqrt2_2,sqrt2_2);break;
-		case Direction.SOUTHEAST: dirvector = new Point(sqrt2_2,-sqrt2_2);break;
-		case Direction.NORTHWEST: dirvector = new Point(-sqrt2_2,sqrt2_2);break;
-		case Direction.SOUTHWEST: dirvector = new Point(-sqrt2_2,-sqrt2_2);break;
-	
-		default : dirvector = new Point(0,0);break;
-	}
-	var centerPoint = this.bounding.center;
-	var newPoint = new Point(centerPoint.x+this.speed*dirvector.x,centerPoint.y+this.speed*dirvector.y);
-	
-	this.lastBounding = this.bounding;
-	this.bounding = new circle(newPoint, this.bounding.radius);
-	
+	this.bounding.center = this.bounding.center.add(this.vector);
+}
+
+Player.prototype.stepBackward = function()
+{
+	this.bounding.center = this.bounding.center.sub(this.vector);
 }
 
 Player.prototype.releaseSkill = function(number)
 {
-	switch(number) {
-		
-		case 0: this.skills[0].release();break;
-		case 1:	this.skills[1].release();break;
-		case 2: this.skills[2].release();break;
-		
-		
+	switch(number)
+	{
+		// case 0: this.skills[0].release();break;
+		// case 1:	this.skills[1].release();break;
+		// case 2: this.skills[2].release();break;
 	}
 }
 
@@ -2482,20 +3099,96 @@ Player.prototype.releaseSkill = function(number)
 
 /***
 * NPC.js
+* Version 1.0.0
+* Last Modified 2018/01/20
 ***/
 
 function NPC(config)
 {
 	Character.call(this, config);
+	
+	this.bounding = Circle.makeCircle();
 }
 
 NPC.prototype = new Character()
 NPC.prototype.constructor = NPC;
 
-NPC.prototype.takeDamage = function(damage)
+NPC.prototype.getBoundingBox = function()
+{
+	return this.bounding.outerBounding();
+}
+
+NPC.prototype.getCenter = function()
+{
+	return bounding.center;
+}
+
+NPC.prototype.getRadius = function()
+{
+	return bounding.radius;
+}
+
+NPC.prototype.loadResources = function(filename)
+{
+	var map = this.mapReference;
+	if (map)
+	{
+		this.texture = map.images.addImage(filename);
+		this.textureFile = filename;
+	}
+}
+
+NPC.prototype.areResourcesReady = function()
+{
+	var map = this.mapReference;
+	if (map && this.textureFile)
+	{
+		return map.images.isImageLoad(this.textureFile);
+	}
+	return true;
+}
+
+NPC.prototype.testHit = function(object)
+{
+	if (object instanceof GameObject)
+	{
+		var box = object.bounding;
+		if (box instanceof Circle)
+		{
+			return this.bounding.innerBounding()
+				.intersects(box.innerBounding());
+		}
+		else if (box instanceof Rect)
+		{
+			return box.intersects(this.bounding.innerBounding());
+		}
+	}
+	return false;
+}
+
+NPC.prototype.onHit = function(object)
+{
+	return false;
+}
+
+NPC.prototype.onRender = function(webgl)
+{
+	var map = this.mapReference;
+	if (map && this.texture)
+	{
+		webgl.drawPrimitive(this.bounding.outerBounding(),
+			map.view,
+			this.texture,
+			this.sceneLight);
+	}
+}
+
+NPC.prototype.updateState = function()
 {
 	
 }
+
+NPC.prototype.takeDamage = function(damage) {}
 
 NPC.prototype.makeSpeech = function()
 {
@@ -2989,8 +3682,8 @@ PlotManager.prototype.triggerNextPlot = function()
 
 /***
 * WebGL.js
-* Version 1.2.3
-* Last Modified 2018/01/18
+* Version 1.3.1
+* Last Modified 2018/01/19
 ***/
 
 // WebGL wrapper for convenience
@@ -3063,9 +3756,9 @@ WebGL.prototype.init = function(canvas)
 		bytes : 36,
 		primitiveType : this.gl.TRIANGLES,
 	}
-	for (let i = 0; i < this.arrayData.data.length; i++)
+	for (let j = 0; j < this.arrayData.data.length; j++)
 	{
-		this.arrayData.data[i] = 0;
+		this.arrayData.data[j] = 0;
 	}
 	
 	this.arrayData.data[3] = 0.0;
@@ -3277,23 +3970,26 @@ WebGL.prototype.makeArrayData = function(box, view, additionalColor)
 WebGL.prototype.image2Texture = function(image)
 {
 	var gl = this.gl;
-	
-	gl.bindTexture(gl.TEXTURE_2D, this.textureID);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-	gl.bindTexture(gl.TEXTURE_2D, null);
+	try
+	{
+		gl.bindTexture(gl.TEXTURE_2D, this.textureID);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.bindTexture(gl.TEXTURE_2D, null);
+	}
+	catch (e)
+	{
+		console.log(e.message);
+	}
+	return this.textureID;
 }
 
-WebGL.prototype.drawPrimitive = function(box, view, image, additionalColor)
+WebGL.prototype.drawPrimitive = function(box, view, image,
+											additionalColor, useLastTexture)
 {
-	if (!image || !image.src)
-	{
-		return;
-	}
-	
 	var gl = this.gl;
 	
 	var locV3Position = 0;
@@ -3302,45 +3998,56 @@ WebGL.prototype.drawPrimitive = function(box, view, image, additionalColor)
 	
 	var bytes = this.arrayData.bytes;
 	
+	var textureNo = gl.TEXTURE0;
+	
 	// Make array data.
     if (!this.makeArrayData(box, view, additionalColor))
 	{
 		return;
 	}
-	
-	// Set data array buffer to current.
-	gl.bindBuffer(gl.ARRAY_BUFFER, this.dataBuffer);
-	// Copy data to WebGL buffer.
-	// Attributes: target, dstByteOffset,
-	// srcData, srcOffset, [length](defaulting to 0)
-	gl.bufferSubData(gl.ARRAY_BUFFER, 0,
-		new Float32Array(this.arrayData.data), 0);
-	
-	// Tell WebGL to use this array buffer to draw!
-	gl.bindBuffer(gl.ARRAY_BUFFER, this.dataBuffer);
-	
-	// Tell WebGL how to explain the data array.
-	locV3Position = gl.getAttribLocation(this.shaderProgram, "v3Position");
-	locInTextureCoord = gl.getAttribLocation(this.shaderProgram, "aTextureCoord");
-	locInAdditionColor = gl.getAttribLocation(this.shaderProgram, "aAdditionColor");
-    // Attributes: positionIndex, size, type, normalized, stride(interval), offset
-	gl.vertexAttribPointer(locV3Position, 3, gl.FLOAT, false, bytes, 0);
-	gl.vertexAttribPointer(locInTextureCoord, 2, gl.FLOAT, false, bytes, 12);
-	gl.vertexAttribPointer(locInAdditionColor, 4, gl.FLOAT, false, bytes, 20);
-	// Enable the array data to be used.
-	gl.enableVertexAttribArray(locV3Position);
-	gl.enableVertexAttribArray(locInTextureCoord);
-	gl.enableVertexAttribArray(locInAdditionColor);
+	try
+	{
+		// Set data array buffer to current.
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.dataBuffer);
+		// Copy data to WebGL buffer.
+		// Attributes: target, dstByteOffset,
+		// srcData, srcOffset, [length](defaulting to 0)
+		gl.bufferSubData(gl.ARRAY_BUFFER, 0,
+			new Float32Array(this.arrayData.data), 0);
+		
+		// Tell WebGL to use this array buffer to draw!
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.dataBuffer);
+		
+		// Tell WebGL how to explain the data array.
+		locV3Position = gl.getAttribLocation(this.shaderProgram, "v3Position");
+		locInTextureCoord = gl.getAttribLocation(this.shaderProgram, "aTextureCoord");
+		locInAdditionColor = gl.getAttribLocation(this.shaderProgram, "aAdditionColor");
+	    // Attributes: positionIndex, size, type, normalized, stride(interval), offset
+		gl.vertexAttribPointer(locV3Position, 3, gl.FLOAT, false, bytes, 0);
+		gl.vertexAttribPointer(locInTextureCoord, 2, gl.FLOAT, false, bytes, 12);
+		gl.vertexAttribPointer(locInAdditionColor, 4, gl.FLOAT, false, bytes, 20);
+		// Enable the array data to be used.
+		gl.enableVertexAttribArray(locV3Position);
+		gl.enableVertexAttribArray(locInTextureCoord);
+		gl.enableVertexAttribArray(locInAdditionColor);
 
-	// Use texture.
-	this.image2Texture(image);
-	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, this.textureID);
-	gl.uniform1i(gl.getUniformLocation(this.shaderProgram, "uSampler"), 0);
+		// Use texture.
+		if (! useLastTexture)
+		{
+			this.image2Texture(image);
+		}
+		gl.activeTexture(textureNo);
+		gl.bindTexture(gl.TEXTURE_2D, this.textureID);
+		gl.uniform1i(gl.getUniformLocation(this.shaderProgram, "uSampler"), 0);
 
-    // Final draw.
-	// Attributes: mode, first, count
-	gl.drawArrays(this.arrayData.primitiveType, 0, this.arrayData.vCount);
+		// Final draw.
+		// Attributes: mode, first, count
+		gl.drawArrays(this.arrayData.primitiveType, 0, this.arrayData.vCount);
+	}
+	catch (e)
+	{
+		console.log(e.message);
+	}
 }
 
 // end of WebGL.js
@@ -3348,8 +4055,8 @@ WebGL.prototype.drawPrimitive = function(box, view, image, additionalColor)
 
 /***
 * GameViewer.js
-* Version 1.3.0
-* Last Modified 2018/01/18
+* Version 1.4.1
+* Last Modified 2018/01/22
 */
 
 function GameViewer(config)
@@ -3364,9 +4071,13 @@ function GameViewer(config)
 	this.webGL = null;
 	
 	this.maps = [];
+	this.currentMap = null;
 	this.currentMapIndex = 0;
+	this.allResourcesReady = false;
 	
 	this.backgroundColor = new Color(0.1, 0.1, 0.1, 1.0);
+	
+	this.player = new Player(config);
 	
 	this.initViewer();
 }
@@ -3394,54 +4105,97 @@ GameViewer.prototype.initViewer = function()
 GameViewer.prototype.onMouseEvent = function(e)
 {
     console.log("In GameViewer MouseEvent");
-
+	// Left Button
+	if (e.button == 0)
+	{
+		this.player.turnTo(
+			this.screen2Map(new Point(e.clientX, e.clientY)));
+		this.player.isMoving = true;
+	}
+	// Right button
+	else if (e.button == 2)
+	{
+		this.player.isMoving = false;
+	}
+	else
+	{
+		this.player.isMoving = false;
+	}
 }
 
 GameViewer.prototype.onKeyBoardEvent = function(e)
 {
     console.log("In GameViewer KeyBoardEvent");
-	
-	var keyCode = 0;
-	var keyChar = 0;
-	
-	if (window.event)	// IE
+	try
 	{
-		keyCode = e.keyCode;
-	}
-	else if (e.which)	// Netscape,Firefox,Opera,etc.
-	{
-		keyCode = e.which;
-	}
-	
-    if (keyCode === 27)
-	{
-        console.log("Esc");
-        this.doGameOver();
-        this.gameOver = true;
-    }
-	// Testing code for scrolling view
-	else
-	{
-		keyChar = String.fromCharCode(keyCode)
+		var keyCode = 0;
+		var keyChar = 0;
 		
-		if (keyChar == "W")
+		if (window.event)	// IE
 		{
-			this.scrollView(0, -10);
+			keyCode = e.keyCode;
 		}
-		else if (keyChar == "A")
+		else if (e.which)	// Netscape,Firefox,Opera,etc.
 		{
-			this.scrollView(-10, 0);
+			keyCode = e.which;
 		}
-		else if (keyChar == "S")
+		
+		if (keyCode === 27)	// Esc
 		{
-			this.scrollView(0, 10);
+			console.log("Esc");
+			this.doGameOver();
+			this.gameOver = true;
 		}
-		else if (keyChar == "D")
+		else if (keyCode == 38)	// Up
 		{
-			this.scrollView(10, 0);
+			this.player.turn(new Point(0, -1));
+			this.player.isMoving = true;
+		}
+		else if (keyCode == 37)	// Left
+		{
+			this.player.turn(new Point(-1, 0));
+			this.player.isMoving = true;
+		}
+		else if (keyCode == 40)	// Down
+		{
+			this.player.turn(new Point(0, 1));
+			this.player.isMoving = true;
+		}
+		else if (keyCode == 39)	// Right
+		{
+			this.player.turn(new Point(1, 0));
+			this.player.isMoving = true;
+		}
+		else
+		{
+			keyChar = String.fromCharCode(keyCode)
+			
+			this.player.isMoving = false;
 		}
 	}
-	// End of testing code.
+	catch (e)
+	{
+		cosole.log(e.message);
+		this.player.isMoving = false;
+	}
+}
+
+GameViewer.prototype.screen2Map = function(point)
+{
+	var position = new Point(point.x - this.canvasArea.left,
+								point.y - this.canvasArea.top)
+	try
+	{
+		position.x *= (this.currentMap.view.width / this.canvasArea.width);
+		position.x += this.currentMap.view.left;
+		position.y *= (this.currentMap.view.height / this.canvasArea.height);
+		position.y += this.currentMap.view.top;
+	}
+	catch (e)
+	{
+		console.log(e.message);
+	}
+	return position;
 }
 
 GameViewer.prototype.isSceneDone = function()
@@ -3458,7 +4212,7 @@ GameViewer.prototype.doScene = function()
 
 GameViewer.prototype.isGameOver = function()
 {
-    return this.gameOver;
+	return this.gameOver;
 }
 
 GameViewer.prototype.setSceneState = function(state)
@@ -3471,37 +4225,56 @@ GameViewer.prototype.doGameOver = function()
     this.gameOver = true;
 }
 
-GameViewer.prototype.collisionDetection = function()
+GameViewer.prototype.collisionDetection = function(frameCount)
 {
-	var currentMap = this.getCurrentMap();
-    if (currentMap)
-    {
-        currentMap.processObjectHits();
-    }
+	try
+	{
+		this.currentMap.processObjectHits();
+	}
+	catch (e)
+	{
+		console.log(e.message);
+	}
 }
 
-GameViewer.prototype.updateFrame = function()
+GameViewer.prototype.updateFrame = function(frameCount)
 {
     //update objects actions here and return true
-	var currentMap = this.getCurrentMap();
-	if (currentMap)
+	try
 	{
-		currentMap.updateObjectStates();
-		return true;
+		if ((frameCount & 0xFF) === 0xFF)
+		{
+			this.currentMap.clearDeletedObjects();
+		}
+		this.currentMap.updateObjectStates();
+		this.viewAtPlayer();
 	}
-    return false;
+	catch (e)
+	{
+		console.log(e.message);
+	}
+	return true;
 }
 
-GameViewer.prototype.onRender = function()
+GameViewer.prototype.onRender = function(frameCount)
 {
-	var currentMap = this.getCurrentMap();
-	this.drawBackground();
-	if (currentMap)
+	try
 	{
-		currentMap.onRender(this.webGL);
-		return true;
+		this.drawBackground();
+		if (! this.allResourcesReady)
+		{
+			this.allResourcesReady = this.currentMap.areResourcesReady();
+		}
+		else
+		{
+			this.currentMap.onRender(this.webGL);
+		}
 	}
-	return false;
+	catch (e)
+	{
+		console.log(e.message);
+	}
+	return true;
 }
 
 GameViewer.prototype.drawBackground = function()
@@ -3509,39 +4282,62 @@ GameViewer.prototype.drawBackground = function()
 	this.webGL.clearScreen(this.backgroundColor);
 }
 
+GameViewer.prototype.resetPlayer = function()
+{
+	try
+	{
+		var birthPlace = this.currentMap.getBirthPlaceObject();
+		this.player.gameViewer = this;
+		this.player.mapReference = this.currentMap;
+		this.player.bounding = Circle.makeCircle();
+		this.player.bounding.deepCopy(birthPlace.bounding);
+		this.player.textureFile = birthPlace.textureFile;
+		this.player.loadResources(birthPlace.textureFile);
+		if (! this.currentMap.hasObject(this.player))
+		{
+			this.currentMap.addObject(this.player, GameMap.FLOWING);
+		}
+	}
+	catch (e)
+	{
+		console.log(e.message);
+	}
+}
+
+GameViewer.prototype.viewAtPlayer = function()
+{
+	this.currentMap.viewAt(this.player.getCenter());
+}
+
 GameViewer.prototype.viewAtBirthPlace = function()
 {
-	var currentMap = this.getCurrentMap();
-	if (currentMap)
+	if (this.currentMap)
 	{
-		currentMap.viewAtBirthPlace();
+		this.currentMap.viewAtBirthPlace();
 	}
 }
 
 GameViewer.prototype.viewAt = function(point)
 {
-	var currentMap = this.getCurrentMap();
-	if (currentMap)
+	if (this.currentMap)
 	{
-		currentMap.viewAt(point);
+		this.currentMap.viewAt(point);
 	}
 }
 
 GameViewer.prototype.scrollView = function(offsetX, offsetY)
 {
-	var currentMap = this.getCurrentMap();
-	if (currentMap)
+	if (this.currentMap)
 	{
-		currentMap.scrollView(offsetX, offsetY);
+		this.currentMap.scrollView(offsetX, offsetY);
 	}
 }
 
 GameViewer.prototype.setViewTopLeft = function(x, y)
 {
-	var currentMap = this.getCurrentMap();
-	if (currentMap)
+	if (this.currentMap)
 	{
-		currentMap.setViewTopLeft(x, y);
+		this.currentMap.setViewTopLeft(x, y);
 	}
 }
 
@@ -3592,14 +4388,7 @@ GameViewer.prototype.getMapByID = function(mapID)
 
 GameViewer.prototype.getCurrentMap = function()
 {
-	if (this.isValidMapIndex(this.currentMapIndex))
-	{
-		return this.maps[this.currentMapIndex];
-	}
-	else
-	{
-		return null;
-	}
+	return this.currentMap;
 }
 
 GameViewer.prototype.setCurrentMap = function(indexOrID)
@@ -3618,15 +4407,34 @@ GameViewer.prototype.setCurrentMap = function(indexOrID)
 	if (this.isValidMapIndex(i))
 	{
 		this.currentMapIndex = i;
-		this.viewAtBirthPlace();
+		this.currentMap = this.maps[this.currentMapIndex];
 	}
 	
 	return i;
 }
 
+GameViewer.prototype.loadCurrentMap = function(refreshOnly)
+{
+	if (this.currentMap)
+	{
+		this.currentMap.load(this.currentMap.id, refreshOnly);
+	}
+}
+
+GameViewer.prototype.refreshCurrentMap = function()
+{
+	if (this.currentMap)
+	{
+		this.currentMap.load(this.currentMap.id, true);
+		this.resetPlayer();
+		this.viewAtPlayer();
+	}
+}
+
 GameViewer.prototype.addMap = function(mapID)
 {
 	var gameMap = new GameMap(this.config);
+	gameMap.gameViewer = this;
 	gameMap.load(mapID);
 	this.maps.push(gameMap);
 }
@@ -3654,8 +4462,8 @@ GameViewer.prototype.clearAllMaps = function()
 
 /***
 * Main.js
-* Version 1.4.0
-* Last Modified 2018/01/18
+* Version 1.4.2
+* Last Modified 2018/01/22
 ***/
 
 window.onload = function(event)
@@ -3677,8 +4485,6 @@ function Main(event)
 
     this.MessageQueue = new Queue();
 
-    this.plotManager = new PlotManager();
-
     this.config = new Configuration("assets/config/config.xml");
 	this.gameMapIDs = ["sceneStart", "scene1", "scene2", "scene2-1",
 		"scene2-2", "scene3", "scene4", "sceneFinal"];
@@ -3686,8 +4492,18 @@ function Main(event)
 	this.gameViewer = new GameViewer(this.config);
 	this.gameViewer.addMaps(this.gameMapIDs);
 	this.gameViewer.setCurrentMap(this.gameMapIDs[0]);
+	this.gameViewer.refreshCurrentMap();
 	
 	console.log(this.gameViewer);
+	
+	// Testing code.
+	alert("项目经理：当下的软件园中BUG们横行，我们需要你去拯救我们这个项目，并且要按时交付。去吧，伟大的程序员！");
+	alert("程序员：领命，出发！保证完成任务！");
+	alert("鼠标左键和键盘方向键控制角色行走 >...");
+	alert("其他任意按键使角色停止 >...");
+	alert("走出迷宫，找到BUG（一个闪光的红色球体）以完成任务 >...");
+	alert("现在开始吧！");
+	// End of testing code.
 
     //Enter the Game Loop
     this.requestAnimationFrameId = requestAnimationFrame(this.gameLoop);
@@ -3706,7 +4522,7 @@ Main.prototype.gameLoop = function()
     if (main.MessageQueue.size() !== 0)
 	{
 		var e = null;
-        while(main.MessageQueue.size() !== 0)
+        while (main.MessageQueue.size() !== 0)
 		{
             e = main.MessageQueue.front();
             if (e instanceof MouseEvent)
@@ -3720,24 +4536,31 @@ Main.prototype.gameLoop = function()
             main.MessageQueue.pop();
         }
     }
-    if (main.gameViewer.updateFrame() === false)
+    if (main.gameViewer.updateFrame(main.frameCount) === false)
 	{
         main.exit();
     }
-    main.gameViewer.collisionDetection();
-    if (main.gameViewer.onRender() === false)
+    main.gameViewer.collisionDetection(main.frameCount);
+    if (main.gameViewer.onRender(main.frameCount) === false)
 	{
         main.exit();
     }
     if (main.gameViewer.isSceneDone() === true)
 	{
+		// Testing code.
+		alert("恭喜你找到BUG，拯救了现在这个软件项目！");
+		alert("项目经理：悲剧……不幸地告诉你，又有一个项目要开始了，你准备好了吗？");
+		alert("程序员：no.......");
+		// End of testing code.
         main.gameViewer.doScene();
+		main.exit();
+		window.location.href = "finish.html";
     }
-    console.log(main.gameViewer.isGameOver());
     if (main.gameViewer.isGameOver() === true)
 	{
         console.log("isGameOver === true");
         main.exit();
+		window.location.href = "index.html";
     }
 	else
 	{
@@ -3749,7 +4572,9 @@ Main.prototype.init = function(event)
 {
     console.log("init");
     window.onmousedown = Main.prototype.onMouseDown;
+	window.onmouseup = Main.prototype.onMouseUp;
     window.onkeydown = Main.prototype.onKeyDown;
+	window.onkeyup = Main.prototype.onKeyUp;
 }
 
 Main.prototype.cleanUp = function()
@@ -3766,33 +4591,26 @@ Main.prototype.exit = function()
 	main.exitFlag = true;
     cancelAnimationFrame(main.requestAnimationFrameId);
     main.cleanUp();
-	window.location.href = "index.html";
 }
 
 Main.prototype.onMouseDown = function(event)
 {
-	var main = Main.instance;
-    //console.log("on mouse down");
-    //console.log(event instanceof MouseEvent);
-    main.MessageQueue.push(event);
+	Main.instance.MessageQueue.push(event);
 }
 
-Main.prototype.onLeftButton = function(event)
+Main.prototype.onMouseUp = function(event)
 {
-    console.log("on left button ");
-    //main.MessageQueue.push(event);
-}
-
-Main.prototype.onRightButton = function(event)
-{
-    console.log("on right button ");
-    //main.MessageQueue.push(event);
+	Main.instance.MessageQueue.push(event);
 }
 
 Main.prototype.onKeyDown = function(event)
 {
-	var main = Main.instance;
-    main.MessageQueue.push(event);
+	Main.instance.MessageQueue.push(event);
+}
+
+Main.prototype.onKeyUp = function(event)
+{
+	Main.instance.MessageQueue.push(event);
 }
 
 // Queue for message loop.
